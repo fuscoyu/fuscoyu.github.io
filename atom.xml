@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>fuscoyu&#39;s Blog</title>
+  <icon>https://fuscoyu.github.io/icon.png</icon>
+  
+  <link href="https://fuscoyu.github.io/atom.xml" rel="self"/>
+  
+  <link href="https://fuscoyu.github.io/"/>
+  <updated>2022-03-17T07:07:08.811Z</updated>
+  <id>https://fuscoyu.github.io/</id>
+  
+  <author>
+    <name>fuscoyu</name>
+    
+  </author>
+  
+  <generator uri="https://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>Kubernetes上搭建Jenkins</title>
+    <link href="https://fuscoyu.github.io/2022/02/04/Kubernetes%E4%B8%8A%E6%90%AD%E5%BB%BAJenkins/"/>
+    <id>https://fuscoyu.github.io/2022/02/04/Kubernetes%E4%B8%8A%E6%90%AD%E5%BB%BAJenkins/</id>
+    <published>2022-02-04T12:15:12.000Z</published>
+    <updated>2022-03-17T07:07:08.811Z</updated>
+    
+    
+      
+      
+        
+        
+    <summary type="html">&lt;h1 id=&quot;k8s上搭建Jenkins&quot;&gt;&lt;a href=&quot;#k8s上搭建Jenkins&quot; class=&quot;headerlink&quot; title=&quot;k8s上搭建Jenkins&quot;&gt;&lt;/a&gt;k8s上搭建Jenkins&lt;/h1&gt;&lt;h2 id=&quot;一、搭建k8s集群环境&quot;&gt;&lt;a</summary>
+        
+      
+    
+    
+    
+    <category term="工具箱" scheme="https://fuscoyu.github.io/categories/%E5%B7%A5%E5%85%B7%E7%AE%B1/"/>
+    
+    
+    <category term="Jenkins" scheme="https://fuscoyu.github.io/tags/Jenkins/"/>
+    
+    <category term="Kubernetes" scheme="https://fuscoyu.github.io/tags/Kubernetes/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>Win10+WSL2 开发环境记录</title>
+    <link href="https://fuscoyu.github.io/2022/01/24/Win10-WSL2-development-environment/"/>
+    <id>https://fuscoyu.github.io/2022/01/24/Win10-WSL2-development-environment/</id>
+    <published>2022-01-24T12:12:10.000Z</published>
+    <updated>2022-03-17T07:07:08.811Z</updated>
+    
+    
+      
+      
+        
+        
+    <summary type="html">&lt;h1 id=&quot;WSL2&quot;&gt;&lt;a href=&quot;#WSL2&quot; class=&quot;headerlink&quot; title=&quot;WSL2&quot;&gt;&lt;/a&gt;WSL2&lt;/h1&gt;&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;#wsl2&quot;&gt;WSL2&lt;/a&gt;&lt;ul&gt;
+&lt;li&gt;&lt;a</summary>
+        
+      
+    
+    
+    
+    
+    <category term="WSL2" scheme="https://fuscoyu.github.io/tags/WSL2/"/>
+    
+    <category term="Tmux" scheme="https://fuscoyu.github.io/tags/Tmux/"/>
+    
+    <category term="Win10" scheme="https://fuscoyu.github.io/tags/Win10/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>kolla镜像构建</title>
+    <link href="https://fuscoyu.github.io/2022/01/21/%E6%9E%84%E5%BB%BAkolla-images/"/>
+    <id>https://fuscoyu.github.io/2022/01/21/%E6%9E%84%E5%BB%BAkolla-images/</id>
+    <published>2022-01-21T03:02:56.000Z</published>
+    <updated>2022-03-17T07:07:08.811Z</updated>
+    
+    
+      
+      
+        
+        
+    <summary type="html">&lt;!-- TOC --&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;#kolla-%E7%AE%80%E4%BB%8B&quot;&gt;kolla 简介&lt;/a&gt;&lt;ul&gt;
+&lt;li&gt;&lt;a</summary>
+        
+      
+    
+    
+    
+    <category term="云计算" scheme="https://fuscoyu.github.io/categories/%E4%BA%91%E8%AE%A1%E7%AE%97/"/>
+    
+    
+    <category term="OpenStack" scheme="https://fuscoyu.github.io/tags/OpenStack/"/>
+    
+    <category term="Kolla" scheme="https://fuscoyu.github.io/tags/Kolla/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>vim 基础操作学习记录</title>
+    <link href="https://fuscoyu.github.io/2022/01/19/vim-%E5%9F%BA%E7%A1%80%E6%93%8D%E4%BD%9C%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/"/>
+    <id>https://fuscoyu.github.io/2022/01/19/vim-%E5%9F%BA%E7%A1%80%E6%93%8D%E4%BD%9C%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/</id>
+    <published>2022-01-19T13:46:11.000Z</published>
+    <updated>2022-03-17T07:07:08.811Z</updated>
+    
+    
+      
+      
+        
+        
+    <summary type="html">&lt;h1 id=&quot;vim-操作&quot;&gt;&lt;a href=&quot;#vim-操作&quot; class=&quot;headerlink&quot; title=&quot;vim 操作&quot;&gt;&lt;/a&gt;vim 操作&lt;/h1&gt;&lt;p&gt;分屏： &lt;code&gt;:vs&lt;/code&gt; 横分屏 &lt;code&gt;:sp&lt;/code&gt; 竖分屏&lt;/p&gt;
+&lt;h2</summary>
+        
+      
+    
+    
+    
+    <category term="工具箱" scheme="https://fuscoyu.github.io/categories/%E5%B7%A5%E5%85%B7%E7%AE%B1/"/>
+    
+    
+    <category term="Vim" scheme="https://fuscoyu.github.io/tags/Vim/"/>
+    
+  </entry>
+  
+</feed>
