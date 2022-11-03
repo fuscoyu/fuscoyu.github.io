@@ -411,4 +411,49 @@
         <tag>Kolla</tag>
       </tags>
   </entry>
+  <entry>
+    <title>每天学习一个命令: top 显示Linux任务</title>
+    <url>/2022/11/03/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-top-%E6%98%BE%E7%A4%BALinux%E4%BB%BB%E5%8A%A1/</url>
+    <content><![CDATA[<blockquote>
+<p> top 命令提供了正在运行的linux系统的动态实时的监控信息。常用与排查系统性能问题。</p>
+</blockquote>
+<h2 id="top常用命令"><a href="#top常用命令" class="headerlink" title="top常用命令"></a>top常用命令</h2><p>命令格式:<br><code>top [-] [d] [p] [q] [c] [C] [S] [n]</code><br>参数说明：<br><code>d</code>: 指定每两次屏幕信息刷新之间的时间间隔。当然用户可以使用s交互命令来改变之。 <code>top -d 1</code> ，则top每隔1秒刷新显示一次<br><code>p</code>: 通过指定监控进程ID来仅仅监控某个进程的状态。<code>top -p 16091</code> 只看某一个进程的<br><code>c</code>: 显示整个命令行而不只是显示命令名</p>
+<p>在top命令的显示窗口，我们还可以输入以下字母，进行一些交互:<br><code>h</code>或<code>?</code>: 显示帮助画面，给出一些简短的命令总结说明。<br><code>q</code>: 退出程序。<br><code>M</code>: 根据驻留内存大小进行排序。<strong>这个要记住</strong><br><code>P</code>: 根据CPU使用百分比大小进行排序。<strong>这个要记住</strong><br><code>T</code>: 根据时间&#x2F;累计时间进行排序。</p>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">top</span><br></pre></td></tr></table></figure>
+
+<p>top 命令区分为两个部分，上面为统计部分，下面为进程信息。</p>
+<p><img src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/Untitled.png"></p>
+<h3 id="系统统计信息"><a href="#系统统计信息" class="headerlink" title="系统统计信息"></a>系统统计信息</h3><h4 id="第一行"><a href="#第一行" class="headerlink" title="第一行"></a>第一行</h4><p><code>top - 11:11:40 up 4 days, 20:30, 2 users, load average: 0.89, 0.96, 3.77</code></p>
+<p>系统时间，已运行天数，登录用户数，1分钟，5分钟，15分钟系统平均负载</p>
+<h4 id="第二行"><a href="#第二行" class="headerlink" title="第二行"></a>第二行</h4><p><code>Tasks: 969 total, 2 running, 682 sleeping, 0 stopped, 1 zombie</code><br>运行的任务数，总量：969；运行中：2；睡眠：682；停止：0；僵尸进程：1；</p>
+<h4 id="第三行"><a href="#第三行" class="headerlink" title="第三行"></a>第三行</h4><p><code>%Cpu(s): 11.3 us, 6.2 sy, 0.0 ni, 82.3 id, 0.1 wa, 0.0 hi, 0.0 si, 0.0 st</code></p>
+<p><code>us</code>: (user)用户空间占用CPU百分比<br><code>sy</code>: (system)系统空间占用CPU百分比<br><code>ni</code>: (nice)改变过优先级的进程占用CPU百分比<br><code>id</code>: (idle)处于空闲状态占用CPU百分比<br><code>hi</code>: (Hardware interrputs) 硬中断占用CPU百分比<br><code>si</code>: (Software interrputs) 软中断占用CPU百分比<br><code>st</code>: (Steal Time) <a href="https://www.cnblogs.com/menkeyi/p/6732020.html">虚拟机窃取CPU时间</a>是虚拟 CPU 在管理程序为另一个虚拟处理器提供服务时等待真实 CPU 的时间百分比</p>
+<blockquote>
+<p>需要关注 <code>us, sy, wa</code> 这3个值占用是否高。多少算高？<code>us</code> 一般超过75%就算高，<code>sy</code> 一般超过30%就算高，<code>wa</code> 超过5%就算高。</p>
+</blockquote>
+<h4 id="第四行"><a href="#第四行" class="headerlink" title="第四行"></a>第四行</h4><p><code>KiB Mem : 33008723+total, 24753566+free, 15236984 used, 67314576 buff/cache</code></p>
+<p><code>total</code>: 物理内存总量<br><code>free</code>: 空闲内存<br><code>used</code>: 已使用内存<br><code>buff/cache</code>: 缓冲&#x2F;缓存的内存</p>
+<blockquote>
+<p><code>buffer</code>: (写)缓冲区是系统两端处理速度的平衡。通常来说硬盘的写入的速度是性能瓶颈，引入缓冲区是为了减少短期内突发的I&#x2F;O的影响。举个栗子，vim 编辑器并不是每输入一个字符就保存一次，默认是先保存到buffer中，用户触发 <code>:w</code> 命令进行保存时再写入到磁盘。<br><code>cache</code>: (读)缓存区是处理两端速度不匹配的一种折中策略。主要原因是CPU和内存直接的速度差异越来越大。如果假的内存可以和CPU做的一样快，cache就可以不用了。</p>
+</blockquote>
+<h4 id="第五行"><a href="#第五行" class="headerlink" title="第五行"></a>第五行</h4><p><code>KiB Swap: 0 total, 0 free, 0 used. 31221619+avail Mem</code></p>
+<p><code>Swap</code>: 交换分区信息<br><code>total</code>: 交换分区总量<br><code>free</code>: 交换分区空闲<br><code>used</code>: 已使用的空间<br><code>avail</code>: 可用的交换分区</p>
+<blockquote>
+<p>交换分区通常我们说的虚拟内存，是在硬盘中划分一个分区出来。<strong>当物理内存不够用的时候</strong>，内核就会释放 <code>buffers/cache</code> 里一些长时间不使用的程序，然后将这些程序临时放到 <code>Swap</code> 分区中。</p>
+</blockquote>
+<h3 id="进程信息"><a href="#进程信息" class="headerlink" title="进程信息"></a>进程信息</h3><p><code>PID</code>: 进程id<br><code>USER</code>: 进程所有者用户名<br><code>PR</code>: 优先级。数值越大优先级越高<br><code>NI</code>: nice值，负值表示高优先级，正值表示低优先级<br><code>VIRT</code>: 进程使用的虚拟内存总量，单位KB。VIRT&#x3D;SWAP+RES<br><code>SWAP</code>: 进程使用的虚拟内存中被换出的大小，单位KB<br><code>RES</code>: 进程使用的、未被换出的物理内存大小，单位KB，RES&#x3D;CODE+DATA<br><code>SHR</code>: 共享内存大小，单位KB<br><code>S</code>: 进程状态。D表示不可中断的睡眠状态；R表示运行；S表示睡眠；T表示跟踪&#x2F;停止；Z表示僵尸进程。<br><code>%CPU</code>: 上次更新到现在的CPU占用百分比<br><code>%MEM</code>: 进程使用的物理内存百分比<br><code>TIME+</code>: 进程使用的CPU时间总计，单位1&#x2F;100秒<br><code>COMMAND</code>: 命令名&#x2F;命令行</p>
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><ul>
+<li><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a></li>
+<li><a href="https://blog.csdn.net/duzilonglove/article/details/80096567">Linux系统监控——top命令_Storm啊的博客-CSDN博客_linux top监控某个进程</a></li>
+<li><a href="https://einverne.github.io/post/2014/04/top-linux-command.html">每天学习一个命令：top 查看资源占用 | Verne in GitHub</a></li>
+<li><a href="https://linux.die.net/man/1/top">top(1): tasks - Linux man page</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
+  </entry>
 </search>
