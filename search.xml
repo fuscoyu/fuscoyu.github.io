@@ -464,7 +464,7 @@
 </blockquote>
 <h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 1  0      0 759052 1845192 99157744    0    0     0    50    0    0  2  1 96  1  0</span><br></pre></td></tr></table></figure>
 <h3 id="解释输出信息"><a href="#解释输出信息" class="headerlink" title="解释输出信息"></a>解释输出信息</h3><p><code>procs</code>:</p>
-<pre><code>r: 正在运行的或者等待CPU运行的进程数。当这个值**长时间**超过了CPU个数，就会出现CPU瓶颈。一般负载大于3就算比较高，大于5是高，大于10系统就不正常。
+<pre><code>r: 正在运行的或者等待CPU运行的进程数。当这个值长时间超过了CPU个数，就会出现CPU瓶颈。一般负载大于3就算比较高，大于5是高，大于10系统就不正常。
 b: 等待 I/O 完成的阻塞的进程数。
 </code></pre>
 <p><code>memory</code>: </p>
@@ -504,5 +504,11 @@ st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time`
 
 <h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://manned.org/vmstat#head2">vmstat - manned.org</a><br><a href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解CPU steal time - MKY-门可意 - 博客园</a><br><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a><br><a href="https://www.cnblogs.com/ggjucheng/archive/2012/01/05/2312625.html">Linux vmstat命令实战详解 - ggjucheng - 博客园</a></p>
 ]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
   </entry>
 </search>
