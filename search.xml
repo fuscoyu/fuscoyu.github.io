@@ -456,4 +456,53 @@
         <tag>Linux</tag>
       </tags>
   </entry>
+  <entry>
+    <title>每天学习一个命令: vmstat 统计系统资源使用</title>
+    <url>/2022/11/07/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-vmstat-%E7%BB%9F%E8%AE%A1%E7%B3%BB%E7%BB%9F%E8%B5%84%E6%BA%90%E4%BD%BF%E7%94%A8/</url>
+    <content><![CDATA[<blockquote>
+<p>vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 活动信息。<br>生成的第一个报告给出了自上次重新启动依赖的平均值。优势是可以按周期或实时采集上述信息。</p>
+</blockquote>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 1  0      0 759052 1845192 99157744    0    0     0    50    0    0  2  1 96  1  0</span><br></pre></td></tr></table></figure>
+<h3 id="解释输出信息"><a href="#解释输出信息" class="headerlink" title="解释输出信息"></a>解释输出信息</h3><p><code>procs</code>:</p>
+<pre><code>r: 正在运行的或者等待CPU运行的进程数。当这个值**长时间**超过了CPU个数，就会出现CPU瓶颈。一般负载大于3就算比较高，大于5是高，大于10系统就不正常。
+b: 等待 I/O 完成的阻塞的进程数。
+</code></pre>
+<p><code>memory</code>: </p>
+<pre><code>以下参数会受到 --unit 参数的影响
+
+swpd: 交换内存使用量。
+free: 空闲内存的数量。
+buff: 缓冲区内存使用量。
+cache: 缓存区内存使用量。
+incat: 禁用的内存数量。(-a option)
+active: 可用的内存数量。(-a option)
+</code></pre>
+<p><code>swap</code>:</p>
+<pre><code>&gt; 以下参数会受到 `--unit` 参数的影响
+
+si: 从磁盘交换到内存的内存量(/s)。
+so: 从内存交换到磁盘内存量(/s)。
+</code></pre>
+<p><code>io</code>:</p>
+<pre><code>bi: 从块设备接受的块(block/s)。
+bo: 发送到块设备的块(block/s)。
+</code></pre>
+<p><code>system</code>:</p>
+<pre><code>in: 每秒钟系统中断数，包括时钟中断。
+cs: 每秒钟系统切换上下文的次数。
+</code></pre>
+<p><code>cpu</code>:</p>
+<pre><code>以下参数之和是总的CPU时间。
+
+us: CPU在用户空间所占用的时间。
+sy: CPU在内核空间所占用的时间。
+id: CPU空闲时间。
+wa: CPU在等待IO所占用的实际。
+st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time` 维持在很高的数值上，大概率是服务器创建虚拟机太多。)
+</code></pre>
+<h3 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h3><h4 id="每2秒显示报告共5次"><a href="#每2秒显示报告共5次" class="headerlink" title="每2秒显示报告共5次"></a>每2秒显示报告共5次</h4><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat 2 5</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 0  1      0 757084 1844672 99160048    0    0     0    50    0    0  2  1 96  1  0</span><br><span class="line"> 2  1      0 756924 1844672 99160096    0    0     8   604 4883 9736  4  1 95  1  0</span><br><span class="line"> 0  0      0 757040 1844672 99160144    0    0     8   444 3395 8276  2  0 97  1  0</span><br><span class="line"> 0  0      0 757600 1844672 99160184    0    0     0   466 2905 7775  1  0 99  1  0</span><br><span class="line"> 0  0      0 758116 1844676 99160184    0    0     0  2440 3070 7604  1  0 99  1  0</span><br></pre></td></tr></table></figure>
+
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://manned.org/vmstat#head2">vmstat - manned.org</a><br><a href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解CPU steal time - MKY-门可意 - 博客园</a><br><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a><br><a href="https://www.cnblogs.com/ggjucheng/archive/2012/01/05/2312625.html">Linux vmstat命令实战详解 - ggjucheng - 博客园</a></p>
+]]></content>
+  </entry>
 </search>
