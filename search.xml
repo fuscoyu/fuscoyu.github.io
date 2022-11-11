@@ -412,6 +412,23 @@
       </tags>
   </entry>
   <entry>
+    <title>每天学习一个命令: mount 挂载文件系统</title>
+    <url>/2022/11/10/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-mount-%E6%8C%82%E8%BD%BD%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/</url>
+    <content><![CDATA[<blockquote>
+<p>mount 挂载文件系统。它提供一个可以访问整个<a href="https://en.wikipedia.org/wiki/File_system">文件系统</a>的目录。</p>
+</blockquote>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p><strong>下面这个例子是挂载 &#x2F;dev&#x2F;sdd1 分区到 &#x2F;data 目录</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># lsblk</span></span><br><span class="line">NAME                   MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT</span><br><span class="line">sda                      8:0    0 931.5G  0 disk</span><br><span class="line">└─sda1                   8:1    0 931.5G  0 part /</span><br><span class="line">sdb                      8:16   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdc                      8:32   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdd                      8:48   0 931.5G  0 disk</span><br><span class="line">└─sdd1                   8:49   0 931.5G  0 part </span><br><span class="line">sde                      8:64   0 931.5G  0 disk</span><br><span class="line">└─sde1                   8:65   0 931.5G  0 part</span><br><span class="line">sdf                      8:80   0 931.5G  0 disk</span><br><span class="line">└─sdf1                   8:81   0 931.5G  0 part</span><br><span class="line">sdg                      8:96   0   3.7T  0 disk</span><br><span class="line">└─sdg1                   8:97   0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sdh                      8:112  0   3.7T  0 disk</span><br><span class="line">└─sdh1                   8:113  0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sr0                     11:0    1  1024M  0 rom</span><br><span class="line"></span><br><span class="line">// 格式化分区</span><br><span class="line">root@compute:~<span class="comment"># mkfs.ext4 /dev/sdd1</span></span><br><span class="line"></span><br><span class="line">// 创建挂载点</span><br><span class="line">root@compute:~<span class="comment"># mkdir /data</span></span><br><span class="line"></span><br><span class="line">// 挂载 /dev/sdd1 到 /data 目录</span><br><span class="line">root@compute:~<span class="comment"># mount /dev/sdd1 /data</span></span><br><span class="line"></span><br><span class="line">// 查看挂载信息</span><br><span class="line">root@compute:~<span class="comment"># mount</span></span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">/dev/sdd1 on /data <span class="built_in">type</span> ext4 (rw,relatime,data=ordered)</span><br></pre></td></tr></table></figure>
+
+<h2 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h2><h3 id="显示所有已经挂载的文件系统"><a href="#显示所有已经挂载的文件系统" class="headerlink" title="显示所有已经挂载的文件系统"></a>显示所有已经挂载的文件系统</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount </span><br></pre></td></tr></table></figure>
+
+<h3 id="挂载设备到目录"><a href="#挂载设备到目录" class="headerlink" title="挂载设备到目录"></a>挂载设备到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 以下是标准格式</span></span><br><span class="line">mount [-t <span class="built_in">type</span>] device <span class="built_in">dir</span></span><br></pre></td></tr></table></figure>
+<p><code>-t type</code>: mount 命令会检测到文件系统。参数是可选项。</p>
+<h3 id="挂载-ISO-镜像到目录"><a href="#挂载-ISO-镜像到目录" class="headerlink" title="挂载 ISO 镜像到目录"></a>挂载 ISO 镜像到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount ISO <span class="built_in">dir</span> -o ro</span><br></pre></td></tr></table></figure>
+<p><code>-o ro</code>: ISO是只读设备，禁止进行修改。</p>
+]]></content>
+  </entry>
+  <entry>
     <title>每天学习一个命令: top 显示Linux任务</title>
     <url>/2022/11/03/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-top-%E6%98%BE%E7%A4%BALinux%E4%BB%BB%E5%8A%A1/</url>
     <content><![CDATA[<blockquote>
