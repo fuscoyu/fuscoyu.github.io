@@ -46,7 +46,7 @@
     <url>/2022/01/24/Win10-WSL2-development-environment/</url>
     <content><![CDATA[<h1 id="WSL2"><a href="#WSL2" class="headerlink" title="WSL2"></a>WSL2</h1><ul>
 <li><a href="#wsl2">WSL2</a><ul>
-<li><a href="#windows">Windows</a><ul>
+<li><a href="#windows10">Windows10</a><ul>
 <li><a href="#%E5%AE%89%E8%A3%85wsl2">安装wsl2</a></li>
 <li><a href="#%E5%B8%B8%E7%94%A8%E8%BD%AF%E4%BB%B6">常用软件</a></li>
 </ul>
@@ -120,6 +120,26 @@
         <tag>WSL2</tag>
         <tag>Tmux</tag>
         <tag>Win10</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>kubevirt make cluster-sync pull 镜像timeout</title>
+    <url>/2024/02/21/kubevirt:%20make%20cluster-sync%20pull%20%E9%95%9C%E5%83%8Ftimeout/</url>
+    <content><![CDATA[<blockquote>
+<p>尝试在本地编译 kubevirt 源码，在执行 make cluster-sync 发生报错。<br>环境信息:<br>root@kubevirt:~&#x2F;kubevirt# lsb_release -a<br>Distributor ID: Ubuntu<br>Description:    Ubuntu 22.04 LTS<br>Release:        22.04<br>Codename:       jammy</p>
+</blockquote>
+<h2 id="操作记录"><a href="#操作记录" class="headerlink" title="操作记录"></a>操作记录</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># pull kubevirt</span></span><br><span class="line">git <span class="built_in">clone</span> git@github.com:kubevirt/kubevirt.git</span><br><span class="line"><span class="comment"># 切换tag</span></span><br><span class="line">git checkout v1.1.1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用kind创建k8s</span></span><br><span class="line"><span class="built_in">export</span> KUBEVIRT_PROVIDER=kind-1.27</span><br><span class="line">make cluster-up</span><br><span class="line"></span><br><span class="line"><span class="comment"># 编译源码并同步到k8s</span></span><br><span class="line">make cluster-sync</span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">INFO: Repository fedora_with_test_tooling instantiated at:</span><br><span class="line">  /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">Repository rule container_pull defined at:</span><br><span class="line">  /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl:243:33: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">ERROR: An error occurred during the fetch of repository <span class="string">&#x27;fedora_with_test_tooling&#x27;</span>:</span><br><span class="line">   Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: fetching container_pull rule //external:fedora_with_test_tooling: Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/containerimages/BUILD.bazel:86:16: //containerimages:fedora-with-test-tooling depends on @fedora_with_test_tooling//image:image <span class="keyword">in</span> repository @fedora_with_test_tooling wh</span><br><span class="line">ich failed to fetch. no such package <span class="string">&#x27;@fedora_with_test_tooling//image&#x27;</span>: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downlo</span><br><span class="line">aded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io</span><br><span class="line">/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0ebfd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: Analysis of target <span class="string">&#x27;//:push-fedora-with-test-tooling-container-disk&#x27;</span> failed; build aborted:</span><br><span class="line">INFO: Elapsed time: 600.464s</span><br><span class="line">INFO: 0 processes.</span><br></pre></td></tr></table></figure>
+<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>报错信息是可以看到是 pull command failed: timed out. Elapsed time: 600.464s<br>下载镜像超时有两种可能<br>1.无法访问仓库导致的超时(https握手失败会立即报错不会等待600s这么久，排除);<br>2.因为镜像太大导致的下载镜像超时；</p>
+<h3 id="因为镜像太大导致的下载镜像超时"><a href="#因为镜像太大导致的下载镜像超时" class="headerlink" title="因为镜像太大导致的下载镜像超时"></a>因为镜像太大导致的下载镜像超时</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@kubevirt:~/kubevirt<span class="comment"># ps -ef|grep download</span></span><br><span class="line">root     3162711 3146984  0 09:17 ?        00:00:00 /root/.cache/bazel/_bazel_root/install/7e78030801a38f836b1891b02e25eaaa/process-wrapper --<span class="built_in">timeout</span>=800 --kill_delay=15 /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_image_base/image -os linux -os-version  -os-features -architecture amd64 -variant  -features  -name gcr.io/distroless/base@sha256:6c871aa3c9019984dfd7f520635bd658d740ad20c6268a82faa433f69dfc9a0b</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入到bazel server 查看镜像是否下载</span></span><br><span class="line">root@kubevirt:~/kubevirt<span class="comment"># docker exec -it -uroot kubevirt-bazel-server bash</span></span><br><span class="line"></span><br><span class="line">[root@kubevirt kubevirt]<span class="comment"># ls -lh /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/</span></span><br><span class="line">total 671M</span><br><span class="line">-rwxr-xr-x 1 root root   64 Feb 20 01:20 000.sha256</span><br><span class="line">-rw-r--r-- 1 root root 601M Feb 20 01:30 000.tar.gz</span><br><span class="line">-rwxr-xr-x 1 root root  492 Feb 20 01:30 BUILD</span><br><span class="line">-rwxr-xr-x 1 root root 1.2K Feb 20 01:20 config.json</span><br><span class="line">-rwxr-xr-x 1 root root   71 Feb 20 01:20 digest</span><br><span class="line">lrwxrwxrwx 1 root root  110 Feb 20 01:30 image.digest -&gt; /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/digest</span><br><span class="line">-rwxr-xr-x 1 root root  530 Feb 20 01:20 manifest.json</span><br><span class="line">[root@kubevirt kubevirt]<span class="comment">#</span></span><br></pre></td></tr></table></figure>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>可以看到镜像下载了一部分与我们分析情况一致，镜像太大或着网速太慢导致下载超时。查询rules_docker文档，为了防止其他镜像下载超时这里更改 PULLER_TIMEOUT 环境变量。<br>修改 <strong>.bazelrc</strong> 文件 增加 <strong>–action_env&#x3D;PULLER_TIMEOUT&#x3D;10000</strong><br><code>build:x86_64 --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo --compilation_mode=dbg --action_env=PULLER_TIMEOUT=10000</code></p>
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://github.com/bazelbuild/rules_docker/blob/master/docs/container.md#container_pull">rules_docker&#x2F;docs&#x2F;container.md at master · bazelbuild&#x2F;rules_docker</a></p>
+]]></content>
+      <categories>
+        <category>云计算</category>
+      </categories>
+      <tags>
+        <tag>kubevirt</tag>
+        <tag>kubernetes</tag>
       </tags>
   </entry>
   <entry>
@@ -268,10 +288,9 @@
       </tags>
   </entry>
   <entry>
-    <title>初识Miniflux</title>
-    <url>/2022/07/21/%E5%88%9D%E8%AF%86Miniflux/</url>
-    <content><![CDATA[<p>categories: 工具箱</p>
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://miniflux.app/docs/installation.html#docker">Installation Instructions</a><br><a href="https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal">Certbot Instructions | Certbot</a></p>
+    <title>搭建Miniflux</title>
+    <url>/2022/07/21/%E6%90%AD%E5%BB%BAMiniflux/</url>
+    <content><![CDATA[<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://miniflux.app/docs/installation.html#docker">Installation Instructions</a><br><a href="https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal">Certbot Instructions | Certbot</a></p>
 <blockquote>
 <p>之前使用 fresh RSS自建源，发现<a href="https://www.ixiqin.com/">白宦成 - 独立开发者记录</a>的rss源。无法订阅后台报xml解析的错误。网上搜索无果后，就有了换平台的想法。偶然看到这篇文章<a href="https://lukesingham.com/rss-feed-reader/">The Best Self-Hosted RSS Feed Readers</a>，对目前自建rss托管平台进行对比。最终miniflux以8.5的高分胜出。我最喜欢的界面简洁，以下是我的安装记录。</p>
 </blockquote>
@@ -304,6 +323,9 @@
 <p><img src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/IMG_2349.PNG"></p>
 <h1 id="结语"><a href="#结语" class="headerlink" title="结语"></a>结语</h1><p>以上就是我的搭建的miniflux的记录，一起折腾吧。这里推荐大家一些我常看的大佬的博客。<br><a href="https://www.ixiqin.com/">白宦成 - 独立开发者记录</a><br><a href="https://jdhao.github.io/">jdhao’s digital space</a><br><a href="https://someonegao.com/">某高老师的博客 - 人间观察</a><br><a href="https://coolshell.cn/">酷壳 – CoolShell.cn</a></p>
 ]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
       <tags>
         <tag>RSS</tag>
       </tags>
@@ -427,6 +449,12 @@
 <h3 id="挂载-ISO-镜像到目录"><a href="#挂载-ISO-镜像到目录" class="headerlink" title="挂载 ISO 镜像到目录"></a>挂载 ISO 镜像到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount ISO <span class="built_in">dir</span> -o ro</span><br></pre></td></tr></table></figure>
 <p><code>-o ro</code>: ISO是只读设备，禁止进行修改。</p>
 ]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
   </entry>
   <entry>
     <title>每天学习一个命令: top 显示Linux任务</title>
