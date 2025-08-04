@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Hexo 博客发布流程</title>
+    <url>/2025/08/04/Hexo%E5%8D%9A%E5%AE%A2%E5%8F%91%E5%B8%83%E6%B5%81%E7%A8%8B/</url>
+    <content><![CDATA[<h1 id="Hexo-博客发布流程"><a href="#Hexo-博客发布流程" class="headerlink" title="Hexo 博客发布流程"></a>Hexo 博客发布流程</h1><p>一直使用 hexo 发布 blog，但是发现有些命令实在是记不住，所以写一篇博客记录一下。</p>
+<h2 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 创建到草稿</span></span><br><span class="line">hexo new draft 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 测试</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo server --drafts</span><br><span class="line"></span><br><span class="line"><span class="comment"># 发布到post</span></span><br><span class="line">hexo publish post 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 部署到github</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo deploy</span><br><span class="line"></span><br></pre></td></tr></table></figure>]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>blog</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Kubernetes上搭建Jenkins</title>
     <url>/2022/02/04/Kubernetes%E4%B8%8A%E6%90%AD%E5%BB%BAJenkins/</url>
     <content><![CDATA[<h1 id="k8s上搭建Jenkins"><a href="#k8s上搭建Jenkins" class="headerlink" title="k8s上搭建Jenkins"></a>k8s上搭建Jenkins</h1><h2 id="一、搭建k8s集群环境"><a href="#一、搭建k8s集群环境" class="headerlink" title="一、搭建k8s集群环境"></a>一、搭建k8s集群环境</h2><p>使用<a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">kubeadm</a>工具进行kubernetes集群安装</p>
@@ -123,6 +135,26 @@
       </tags>
   </entry>
   <entry>
+    <title>kubevirt make cluster-sync pull 镜像timeout</title>
+    <url>/2024/02/21/kubevirt:%20make%20cluster-sync%20pull%20%E9%95%9C%E5%83%8Ftimeout/</url>
+    <content><![CDATA[<blockquote>
+<p>尝试在本地编译 kubevirt 源码，在执行 make cluster-sync 发生报错。<br>环境信息:<br>root@kubevirt:~&#x2F;kubevirt# lsb_release -a<br>Distributor ID: Ubuntu<br>Description:    Ubuntu 22.04 LTS<br>Release:        22.04<br>Codename:       jammy</p>
+</blockquote>
+<h2 id="操作记录"><a href="#操作记录" class="headerlink" title="操作记录"></a>操作记录</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># pull kubevirt</span></span><br><span class="line">git <span class="built_in">clone</span> git@github.com:kubevirt/kubevirt.git</span><br><span class="line"><span class="comment"># 切换tag</span></span><br><span class="line">git checkout v1.1.1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用kind创建k8s</span></span><br><span class="line"><span class="built_in">export</span> KUBEVIRT_PROVIDER=kind-1.27</span><br><span class="line">make cluster-up</span><br><span class="line"></span><br><span class="line"><span class="comment"># 编译源码并同步到k8s</span></span><br><span class="line">make cluster-sync</span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">INFO: Repository fedora_with_test_tooling instantiated at:</span><br><span class="line">  /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">Repository rule container_pull defined at:</span><br><span class="line">  /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl:243:33: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">ERROR: An error occurred during the fetch of repository <span class="string">&#x27;fedora_with_test_tooling&#x27;</span>:</span><br><span class="line">   Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: fetching container_pull rule //external:fedora_with_test_tooling: Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/containerimages/BUILD.bazel:86:16: //containerimages:fedora-with-test-tooling depends on @fedora_with_test_tooling//image:image <span class="keyword">in</span> repository @fedora_with_test_tooling wh</span><br><span class="line">ich failed to fetch. no such package <span class="string">&#x27;@fedora_with_test_tooling//image&#x27;</span>: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downlo</span><br><span class="line">aded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io</span><br><span class="line">/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0ebfd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: Analysis of target <span class="string">&#x27;//:push-fedora-with-test-tooling-container-disk&#x27;</span> failed; build aborted:</span><br><span class="line">INFO: Elapsed time: 600.464s</span><br><span class="line">INFO: 0 processes.</span><br></pre></td></tr></table></figure>
+<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>报错信息是可以看到是 pull command failed: timed out. Elapsed time: 600.464s<br>下载镜像超时有两种可能<br>1.无法访问仓库导致的超时(https握手失败会立即报错不会等待600s这么久，排除);<br>2.因为镜像太大导致的下载镜像超时；</p>
+<h3 id="因为镜像太大导致的下载镜像超时"><a href="#因为镜像太大导致的下载镜像超时" class="headerlink" title="因为镜像太大导致的下载镜像超时"></a>因为镜像太大导致的下载镜像超时</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@kubevirt:~/kubevirt<span class="comment"># ps -ef|grep download</span></span><br><span class="line">root     3162711 3146984  0 09:17 ?        00:00:00 /root/.cache/bazel/_bazel_root/install/7e78030801a38f836b1891b02e25eaaa/process-wrapper --<span class="built_in">timeout</span>=800 --kill_delay=15 /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_image_base/image -os linux -os-version  -os-features -architecture amd64 -variant  -features  -name gcr.io/distroless/base@sha256:6c871aa3c9019984dfd7f520635bd658d740ad20c6268a82faa433f69dfc9a0b</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入到bazel server 查看镜像是否下载</span></span><br><span class="line">root@kubevirt:~/kubevirt<span class="comment"># docker exec -it -uroot kubevirt-bazel-server bash</span></span><br><span class="line"></span><br><span class="line">[root@kubevirt kubevirt]<span class="comment"># ls -lh /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/</span></span><br><span class="line">total 671M</span><br><span class="line">-rwxr-xr-x 1 root root   64 Feb 20 01:20 000.sha256</span><br><span class="line">-rw-r--r-- 1 root root 601M Feb 20 01:30 000.tar.gz</span><br><span class="line">-rwxr-xr-x 1 root root  492 Feb 20 01:30 BUILD</span><br><span class="line">-rwxr-xr-x 1 root root 1.2K Feb 20 01:20 config.json</span><br><span class="line">-rwxr-xr-x 1 root root   71 Feb 20 01:20 digest</span><br><span class="line">lrwxrwxrwx 1 root root  110 Feb 20 01:30 image.digest -&gt; /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/digest</span><br><span class="line">-rwxr-xr-x 1 root root  530 Feb 20 01:20 manifest.json</span><br><span class="line">[root@kubevirt kubevirt]<span class="comment">#</span></span><br></pre></td></tr></table></figure>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>可以看到镜像下载了一部分与我们分析情况一致，镜像太大或着网速太慢导致下载超时。查询rules_docker文档，为了防止其他镜像下载超时这里更改 PULLER_TIMEOUT 环境变量。<br>修改 <strong>.bazelrc</strong> 文件 增加 <strong>–action_env&#x3D;PULLER_TIMEOUT&#x3D;10000</strong><br><code>build:x86_64 --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo --compilation_mode=dbg --action_env=PULLER_TIMEOUT=10000</code></p>
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://github.com/bazelbuild/rules_docker/blob/master/docs/container.md#container_pull">rules_docker&#x2F;docs&#x2F;container.md at master · bazelbuild&#x2F;rules_docker</a></p>
+]]></content>
+      <categories>
+        <category>云计算</category>
+      </categories>
+      <tags>
+        <tag>kubevirt</tag>
+        <tag>kubernetes</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>ginkgo 学习笔记</title>
     <url>/2024/03/22/ginkgo%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/</url>
     <content><![CDATA[<h1 id="ginkgo-学习笔记"><a href="#ginkgo-学习笔记" class="headerlink" title="ginkgo 学习笔记"></a>ginkgo 学习笔记</h1><h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p>(kubebuilder如何写测试用例)<a href="https://book.kubebuilder.io/cronjob-tutorial/writing-tests">https://book.kubebuilder.io/cronjob-tutorial/writing-tests</a><br>(ginkgo和gomega学习笔记)<a href="https://blog.gmem.cc/ginkgo-study-note">https://blog.gmem.cc/ginkgo-study-note</a></p>
@@ -148,26 +180,6 @@
       </categories>
       <tags>
         <tag>Go</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>kubevirt make cluster-sync pull 镜像timeout</title>
-    <url>/2024/02/21/kubevirt:%20make%20cluster-sync%20pull%20%E9%95%9C%E5%83%8Ftimeout/</url>
-    <content><![CDATA[<blockquote>
-<p>尝试在本地编译 kubevirt 源码，在执行 make cluster-sync 发生报错。<br>环境信息:<br>root@kubevirt:~&#x2F;kubevirt# lsb_release -a<br>Distributor ID: Ubuntu<br>Description:    Ubuntu 22.04 LTS<br>Release:        22.04<br>Codename:       jammy</p>
-</blockquote>
-<h2 id="操作记录"><a href="#操作记录" class="headerlink" title="操作记录"></a>操作记录</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># pull kubevirt</span></span><br><span class="line">git <span class="built_in">clone</span> git@github.com:kubevirt/kubevirt.git</span><br><span class="line"><span class="comment"># 切换tag</span></span><br><span class="line">git checkout v1.1.1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用kind创建k8s</span></span><br><span class="line"><span class="built_in">export</span> KUBEVIRT_PROVIDER=kind-1.27</span><br><span class="line">make cluster-up</span><br><span class="line"></span><br><span class="line"><span class="comment"># 编译源码并同步到k8s</span></span><br><span class="line">make cluster-sync</span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">INFO: Repository fedora_with_test_tooling instantiated at:</span><br><span class="line">  /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">Repository rule container_pull defined at:</span><br><span class="line">  /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl:243:33: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">ERROR: An error occurred during the fetch of repository <span class="string">&#x27;fedora_with_test_tooling&#x27;</span>:</span><br><span class="line">   Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: fetching container_pull rule //external:fedora_with_test_tooling: Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/containerimages/BUILD.bazel:86:16: //containerimages:fedora-with-test-tooling depends on @fedora_with_test_tooling//image:image <span class="keyword">in</span> repository @fedora_with_test_tooling wh</span><br><span class="line">ich failed to fetch. no such package <span class="string">&#x27;@fedora_with_test_tooling//image&#x27;</span>: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downlo</span><br><span class="line">aded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io</span><br><span class="line">/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0ebfd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: Analysis of target <span class="string">&#x27;//:push-fedora-with-test-tooling-container-disk&#x27;</span> failed; build aborted:</span><br><span class="line">INFO: Elapsed time: 600.464s</span><br><span class="line">INFO: 0 processes.</span><br></pre></td></tr></table></figure>
-<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>报错信息是可以看到是 pull command failed: timed out. Elapsed time: 600.464s<br>下载镜像超时有两种可能<br>1.无法访问仓库导致的超时(https握手失败会立即报错不会等待600s这么久，排除);<br>2.因为镜像太大导致的下载镜像超时；</p>
-<h3 id="因为镜像太大导致的下载镜像超时"><a href="#因为镜像太大导致的下载镜像超时" class="headerlink" title="因为镜像太大导致的下载镜像超时"></a>因为镜像太大导致的下载镜像超时</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@kubevirt:~/kubevirt<span class="comment"># ps -ef|grep download</span></span><br><span class="line">root     3162711 3146984  0 09:17 ?        00:00:00 /root/.cache/bazel/_bazel_root/install/7e78030801a38f836b1891b02e25eaaa/process-wrapper --<span class="built_in">timeout</span>=800 --kill_delay=15 /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_image_base/image -os linux -os-version  -os-features -architecture amd64 -variant  -features  -name gcr.io/distroless/base@sha256:6c871aa3c9019984dfd7f520635bd658d740ad20c6268a82faa433f69dfc9a0b</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入到bazel server 查看镜像是否下载</span></span><br><span class="line">root@kubevirt:~/kubevirt<span class="comment"># docker exec -it -uroot kubevirt-bazel-server bash</span></span><br><span class="line"></span><br><span class="line">[root@kubevirt kubevirt]<span class="comment"># ls -lh /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/</span></span><br><span class="line">total 671M</span><br><span class="line">-rwxr-xr-x 1 root root   64 Feb 20 01:20 000.sha256</span><br><span class="line">-rw-r--r-- 1 root root 601M Feb 20 01:30 000.tar.gz</span><br><span class="line">-rwxr-xr-x 1 root root  492 Feb 20 01:30 BUILD</span><br><span class="line">-rwxr-xr-x 1 root root 1.2K Feb 20 01:20 config.json</span><br><span class="line">-rwxr-xr-x 1 root root   71 Feb 20 01:20 digest</span><br><span class="line">lrwxrwxrwx 1 root root  110 Feb 20 01:30 image.digest -&gt; /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/digest</span><br><span class="line">-rwxr-xr-x 1 root root  530 Feb 20 01:20 manifest.json</span><br><span class="line">[root@kubevirt kubevirt]<span class="comment">#</span></span><br></pre></td></tr></table></figure>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>可以看到镜像下载了一部分与我们分析情况一致，镜像太大或着网速太慢导致下载超时。查询rules_docker文档，为了防止其他镜像下载超时这里更改 PULLER_TIMEOUT 环境变量。<br>修改 <strong>.bazelrc</strong> 文件 增加 <strong>–action_env&#x3D;PULLER_TIMEOUT&#x3D;10000</strong><br><code>build:x86_64 --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo --compilation_mode=dbg --action_env=PULLER_TIMEOUT=10000</code></p>
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://github.com/bazelbuild/rules_docker/blob/master/docs/container.md#container_pull">rules_docker&#x2F;docs&#x2F;container.md at master · bazelbuild&#x2F;rules_docker</a></p>
-]]></content>
-      <categories>
-        <category>云计算</category>
-      </categories>
-      <tags>
-        <tag>kubevirt</tag>
-        <tag>kubernetes</tag>
       </tags>
   </entry>
   <entry>
@@ -479,6 +491,74 @@
       </tags>
   </entry>
   <entry>
+    <title>每天学习一个命令: top 显示Linux任务</title>
+    <url>/2022/11/03/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-top-%E6%98%BE%E7%A4%BALinux%E4%BB%BB%E5%8A%A1/</url>
+    <content><![CDATA[<blockquote>
+<p> top 命令提供了正在运行的linux系统的动态实时的监控信息。常用与排查系统性能问题。</p>
+</blockquote>
+<h2 id="top常用命令"><a href="#top常用命令" class="headerlink" title="top常用命令"></a>top常用命令</h2><p>命令格式:<br><code>top [-] [d] [p] [q] [c] [C] [S] [n]</code><br>参数说明：<br><code>d</code>: 指定每两次屏幕信息刷新之间的时间间隔。当然用户可以使用s交互命令来改变之。 <code>top -d 1</code> ，则top每隔1秒刷新显示一次<br><code>p</code>: 通过指定监控进程ID来仅仅监控某个进程的状态。<code>top -p 16091</code> 只看某一个进程的<br><code>c</code>: 显示整个命令行而不只是显示命令名</p>
+<p>在top命令的显示窗口，我们还可以输入以下字母，进行一些交互:<br><code>h</code>或<code>?</code>: 显示帮助画面，给出一些简短的命令总结说明。<br><code>q</code>: 退出程序。<br><code>M</code>: 根据驻留内存大小进行排序。<strong>这个要记住</strong><br><code>P</code>: 根据CPU使用百分比大小进行排序。<strong>这个要记住</strong><br><code>T</code>: 根据时间&#x2F;累计时间进行排序。</p>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">top</span><br></pre></td></tr></table></figure>
+
+<p>top 命令区分为两个部分，上面为统计部分，下面为进程信息。</p>
+<p><img src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/Untitled.png"></p>
+<h3 id="系统统计信息"><a href="#系统统计信息" class="headerlink" title="系统统计信息"></a>系统统计信息</h3><h4 id="第一行"><a href="#第一行" class="headerlink" title="第一行"></a>第一行</h4><p><code>top - 11:11:40 up 4 days, 20:30, 2 users, load average: 0.89, 0.96, 3.77</code></p>
+<p>系统时间，已运行天数，登录用户数，1分钟，5分钟，15分钟系统平均负载</p>
+<h4 id="第二行"><a href="#第二行" class="headerlink" title="第二行"></a>第二行</h4><p><code>Tasks: 969 total, 2 running, 682 sleeping, 0 stopped, 1 zombie</code><br>运行的任务数，总量：969；运行中：2；睡眠：682；停止：0；僵尸进程：1；</p>
+<h4 id="第三行"><a href="#第三行" class="headerlink" title="第三行"></a>第三行</h4><p><code>%Cpu(s): 11.3 us, 6.2 sy, 0.0 ni, 82.3 id, 0.1 wa, 0.0 hi, 0.0 si, 0.0 st</code></p>
+<p><code>us</code>: (user)用户空间占用CPU百分比<br><code>sy</code>: (system)系统空间占用CPU百分比<br><code>ni</code>: (nice)改变过优先级的进程占用CPU百分比<br><code>id</code>: (idle)处于空闲状态占用CPU百分比<br><code>hi</code>: (Hardware interrputs) 硬中断占用CPU百分比<br><code>si</code>: (Software interrputs) 软中断占用CPU百分比<br><code>st</code>: (Steal Time) <a href="https://www.cnblogs.com/menkeyi/p/6732020.html">虚拟机窃取CPU时间</a>是虚拟 CPU 在管理程序为另一个虚拟处理器提供服务时等待真实 CPU 的时间百分比</p>
+<blockquote>
+<p>需要关注 <code>us, sy, wa</code> 这3个值占用是否高。多少算高？<code>us</code> 一般超过75%就算高，<code>sy</code> 一般超过30%就算高，<code>wa</code> 超过5%就算高。</p>
+</blockquote>
+<h4 id="第四行"><a href="#第四行" class="headerlink" title="第四行"></a>第四行</h4><p><code>KiB Mem : 33008723+total, 24753566+free, 15236984 used, 67314576 buff/cache</code></p>
+<p><code>total</code>: 物理内存总量<br><code>free</code>: 空闲内存<br><code>used</code>: 已使用内存<br><code>buff/cache</code>: 缓冲&#x2F;缓存的内存</p>
+<blockquote>
+<p><code>buffer</code>: (写)缓冲区是系统两端处理速度的平衡。通常来说硬盘的写入的速度是性能瓶颈，引入缓冲区是为了减少短期内突发的I&#x2F;O的影响。举个栗子，vim 编辑器并不是每输入一个字符就保存一次，默认是先保存到buffer中，用户触发 <code>:w</code> 命令进行保存时再写入到磁盘。<br><code>cache</code>: (读)缓存区是处理两端速度不匹配的一种折中策略。主要原因是CPU和内存直接的速度差异越来越大。如果假的内存可以和CPU做的一样快，cache就可以不用了。</p>
+</blockquote>
+<h4 id="第五行"><a href="#第五行" class="headerlink" title="第五行"></a>第五行</h4><p><code>KiB Swap: 0 total, 0 free, 0 used. 31221619+avail Mem</code></p>
+<p><code>Swap</code>: 交换分区信息<br><code>total</code>: 交换分区总量<br><code>free</code>: 交换分区空闲<br><code>used</code>: 已使用的空间<br><code>avail</code>: 可用的交换分区</p>
+<blockquote>
+<p>交换分区通常我们说的虚拟内存，是在硬盘中划分一个分区出来。<strong>当物理内存不够用的时候</strong>，内核就会释放 <code>buffers/cache</code> 里一些长时间不使用的程序，然后将这些程序临时放到 <code>Swap</code> 分区中。</p>
+</blockquote>
+<h3 id="进程信息"><a href="#进程信息" class="headerlink" title="进程信息"></a>进程信息</h3><p><code>PID</code>: 进程id<br><code>USER</code>: 进程所有者用户名<br><code>PR</code>: 优先级。数值越大优先级越高<br><code>NI</code>: nice值，负值表示高优先级，正值表示低优先级<br><code>VIRT</code>: 进程使用的虚拟内存总量，单位KB。VIRT&#x3D;SWAP+RES<br><code>SWAP</code>: 进程使用的虚拟内存中被换出的大小，单位KB<br><code>RES</code>: 进程使用的、未被换出的物理内存大小，单位KB，RES&#x3D;CODE+DATA<br><code>SHR</code>: 共享内存大小，单位KB<br><code>S</code>: 进程状态。D表示不可中断的睡眠状态；R表示运行；S表示睡眠；T表示跟踪&#x2F;停止；Z表示僵尸进程。<br><code>%CPU</code>: 上次更新到现在的CPU占用百分比<br><code>%MEM</code>: 进程使用的物理内存百分比<br><code>TIME+</code>: 进程使用的CPU时间总计，单位1&#x2F;100秒<br><code>COMMAND</code>: 命令名&#x2F;命令行</p>
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><ul>
+<li><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a></li>
+<li><a href="https://blog.csdn.net/duzilonglove/article/details/80096567">Linux系统监控——top命令_Storm啊的博客-CSDN博客_linux top监控某个进程</a></li>
+<li><a href="https://einverne.github.io/post/2014/04/top-linux-command.html">每天学习一个命令：top 查看资源占用 | Verne in GitHub</a></li>
+<li><a href="https://linux.die.net/man/1/top">top(1): tasks - Linux man page</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>每天学习一个命令: mount 挂载文件系统</title>
+    <url>/2022/11/10/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-mount-%E6%8C%82%E8%BD%BD%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/</url>
+    <content><![CDATA[<blockquote>
+<p>mount 挂载文件系统。它提供一个可以访问整个<a href="https://en.wikipedia.org/wiki/File_system">文件系统</a>的目录。</p>
+</blockquote>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p><strong>下面这个例子是挂载 &#x2F;dev&#x2F;sdd1 分区到 &#x2F;data 目录</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># lsblk</span></span><br><span class="line">NAME                   MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT</span><br><span class="line">sda                      8:0    0 931.5G  0 disk</span><br><span class="line">└─sda1                   8:1    0 931.5G  0 part /</span><br><span class="line">sdb                      8:16   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdc                      8:32   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdd                      8:48   0 931.5G  0 disk</span><br><span class="line">└─sdd1                   8:49   0 931.5G  0 part </span><br><span class="line">sde                      8:64   0 931.5G  0 disk</span><br><span class="line">└─sde1                   8:65   0 931.5G  0 part</span><br><span class="line">sdf                      8:80   0 931.5G  0 disk</span><br><span class="line">└─sdf1                   8:81   0 931.5G  0 part</span><br><span class="line">sdg                      8:96   0   3.7T  0 disk</span><br><span class="line">└─sdg1                   8:97   0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sdh                      8:112  0   3.7T  0 disk</span><br><span class="line">└─sdh1                   8:113  0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sr0                     11:0    1  1024M  0 rom</span><br><span class="line"></span><br><span class="line">// 格式化分区</span><br><span class="line">root@compute:~<span class="comment"># mkfs.ext4 /dev/sdd1</span></span><br><span class="line"></span><br><span class="line">// 创建挂载点</span><br><span class="line">root@compute:~<span class="comment"># mkdir /data</span></span><br><span class="line"></span><br><span class="line">// 挂载 /dev/sdd1 到 /data 目录</span><br><span class="line">root@compute:~<span class="comment"># mount /dev/sdd1 /data</span></span><br><span class="line"></span><br><span class="line">// 查看挂载信息</span><br><span class="line">root@compute:~<span class="comment"># mount</span></span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">/dev/sdd1 on /data <span class="built_in">type</span> ext4 (rw,relatime,data=ordered)</span><br></pre></td></tr></table></figure>
+
+<h2 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h2><h3 id="显示所有已经挂载的文件系统"><a href="#显示所有已经挂载的文件系统" class="headerlink" title="显示所有已经挂载的文件系统"></a>显示所有已经挂载的文件系统</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount </span><br></pre></td></tr></table></figure>
+
+<h3 id="挂载设备到目录"><a href="#挂载设备到目录" class="headerlink" title="挂载设备到目录"></a>挂载设备到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 以下是标准格式</span></span><br><span class="line">mount [-t <span class="built_in">type</span>] device <span class="built_in">dir</span></span><br></pre></td></tr></table></figure>
+<p><code>-t type</code>: mount 命令会检测到文件系统。参数是可选项。</p>
+<h3 id="挂载-ISO-镜像到目录"><a href="#挂载-ISO-镜像到目录" class="headerlink" title="挂载 ISO 镜像到目录"></a>挂载 ISO 镜像到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount ISO <span class="built_in">dir</span> -o ro</span><br></pre></td></tr></table></figure>
+<p><code>-o ro</code>: ISO是只读设备，禁止进行修改。</p>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>kolla镜像构建</title>
     <url>/2022/01/21/%E6%9E%84%E5%BB%BAkolla-images/</url>
     <content><![CDATA[<!-- TOC -->
@@ -585,74 +665,6 @@
       <tags>
         <tag>OpenStack</tag>
         <tag>Kolla</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>每天学习一个命令: mount 挂载文件系统</title>
-    <url>/2022/11/10/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-mount-%E6%8C%82%E8%BD%BD%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/</url>
-    <content><![CDATA[<blockquote>
-<p>mount 挂载文件系统。它提供一个可以访问整个<a href="https://en.wikipedia.org/wiki/File_system">文件系统</a>的目录。</p>
-</blockquote>
-<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p><strong>下面这个例子是挂载 &#x2F;dev&#x2F;sdd1 分区到 &#x2F;data 目录</strong></p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># lsblk</span></span><br><span class="line">NAME                   MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT</span><br><span class="line">sda                      8:0    0 931.5G  0 disk</span><br><span class="line">└─sda1                   8:1    0 931.5G  0 part /</span><br><span class="line">sdb                      8:16   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdc                      8:32   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdd                      8:48   0 931.5G  0 disk</span><br><span class="line">└─sdd1                   8:49   0 931.5G  0 part </span><br><span class="line">sde                      8:64   0 931.5G  0 disk</span><br><span class="line">└─sde1                   8:65   0 931.5G  0 part</span><br><span class="line">sdf                      8:80   0 931.5G  0 disk</span><br><span class="line">└─sdf1                   8:81   0 931.5G  0 part</span><br><span class="line">sdg                      8:96   0   3.7T  0 disk</span><br><span class="line">└─sdg1                   8:97   0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sdh                      8:112  0   3.7T  0 disk</span><br><span class="line">└─sdh1                   8:113  0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sr0                     11:0    1  1024M  0 rom</span><br><span class="line"></span><br><span class="line">// 格式化分区</span><br><span class="line">root@compute:~<span class="comment"># mkfs.ext4 /dev/sdd1</span></span><br><span class="line"></span><br><span class="line">// 创建挂载点</span><br><span class="line">root@compute:~<span class="comment"># mkdir /data</span></span><br><span class="line"></span><br><span class="line">// 挂载 /dev/sdd1 到 /data 目录</span><br><span class="line">root@compute:~<span class="comment"># mount /dev/sdd1 /data</span></span><br><span class="line"></span><br><span class="line">// 查看挂载信息</span><br><span class="line">root@compute:~<span class="comment"># mount</span></span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">/dev/sdd1 on /data <span class="built_in">type</span> ext4 (rw,relatime,data=ordered)</span><br></pre></td></tr></table></figure>
-
-<h2 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h2><h3 id="显示所有已经挂载的文件系统"><a href="#显示所有已经挂载的文件系统" class="headerlink" title="显示所有已经挂载的文件系统"></a>显示所有已经挂载的文件系统</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount </span><br></pre></td></tr></table></figure>
-
-<h3 id="挂载设备到目录"><a href="#挂载设备到目录" class="headerlink" title="挂载设备到目录"></a>挂载设备到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 以下是标准格式</span></span><br><span class="line">mount [-t <span class="built_in">type</span>] device <span class="built_in">dir</span></span><br></pre></td></tr></table></figure>
-<p><code>-t type</code>: mount 命令会检测到文件系统。参数是可选项。</p>
-<h3 id="挂载-ISO-镜像到目录"><a href="#挂载-ISO-镜像到目录" class="headerlink" title="挂载 ISO 镜像到目录"></a>挂载 ISO 镜像到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount ISO <span class="built_in">dir</span> -o ro</span><br></pre></td></tr></table></figure>
-<p><code>-o ro</code>: ISO是只读设备，禁止进行修改。</p>
-]]></content>
-      <categories>
-        <category>工具箱</category>
-      </categories>
-      <tags>
-        <tag>Linux</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>每天学习一个命令: top 显示Linux任务</title>
-    <url>/2022/11/03/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-top-%E6%98%BE%E7%A4%BALinux%E4%BB%BB%E5%8A%A1/</url>
-    <content><![CDATA[<blockquote>
-<p> top 命令提供了正在运行的linux系统的动态实时的监控信息。常用与排查系统性能问题。</p>
-</blockquote>
-<h2 id="top常用命令"><a href="#top常用命令" class="headerlink" title="top常用命令"></a>top常用命令</h2><p>命令格式:<br><code>top [-] [d] [p] [q] [c] [C] [S] [n]</code><br>参数说明：<br><code>d</code>: 指定每两次屏幕信息刷新之间的时间间隔。当然用户可以使用s交互命令来改变之。 <code>top -d 1</code> ，则top每隔1秒刷新显示一次<br><code>p</code>: 通过指定监控进程ID来仅仅监控某个进程的状态。<code>top -p 16091</code> 只看某一个进程的<br><code>c</code>: 显示整个命令行而不只是显示命令名</p>
-<p>在top命令的显示窗口，我们还可以输入以下字母，进行一些交互:<br><code>h</code>或<code>?</code>: 显示帮助画面，给出一些简短的命令总结说明。<br><code>q</code>: 退出程序。<br><code>M</code>: 根据驻留内存大小进行排序。<strong>这个要记住</strong><br><code>P</code>: 根据CPU使用百分比大小进行排序。<strong>这个要记住</strong><br><code>T</code>: 根据时间&#x2F;累计时间进行排序。</p>
-<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">top</span><br></pre></td></tr></table></figure>
-
-<p>top 命令区分为两个部分，上面为统计部分，下面为进程信息。</p>
-<p><img src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/Untitled.png"></p>
-<h3 id="系统统计信息"><a href="#系统统计信息" class="headerlink" title="系统统计信息"></a>系统统计信息</h3><h4 id="第一行"><a href="#第一行" class="headerlink" title="第一行"></a>第一行</h4><p><code>top - 11:11:40 up 4 days, 20:30, 2 users, load average: 0.89, 0.96, 3.77</code></p>
-<p>系统时间，已运行天数，登录用户数，1分钟，5分钟，15分钟系统平均负载</p>
-<h4 id="第二行"><a href="#第二行" class="headerlink" title="第二行"></a>第二行</h4><p><code>Tasks: 969 total, 2 running, 682 sleeping, 0 stopped, 1 zombie</code><br>运行的任务数，总量：969；运行中：2；睡眠：682；停止：0；僵尸进程：1；</p>
-<h4 id="第三行"><a href="#第三行" class="headerlink" title="第三行"></a>第三行</h4><p><code>%Cpu(s): 11.3 us, 6.2 sy, 0.0 ni, 82.3 id, 0.1 wa, 0.0 hi, 0.0 si, 0.0 st</code></p>
-<p><code>us</code>: (user)用户空间占用CPU百分比<br><code>sy</code>: (system)系统空间占用CPU百分比<br><code>ni</code>: (nice)改变过优先级的进程占用CPU百分比<br><code>id</code>: (idle)处于空闲状态占用CPU百分比<br><code>hi</code>: (Hardware interrputs) 硬中断占用CPU百分比<br><code>si</code>: (Software interrputs) 软中断占用CPU百分比<br><code>st</code>: (Steal Time) <a href="https://www.cnblogs.com/menkeyi/p/6732020.html">虚拟机窃取CPU时间</a>是虚拟 CPU 在管理程序为另一个虚拟处理器提供服务时等待真实 CPU 的时间百分比</p>
-<blockquote>
-<p>需要关注 <code>us, sy, wa</code> 这3个值占用是否高。多少算高？<code>us</code> 一般超过75%就算高，<code>sy</code> 一般超过30%就算高，<code>wa</code> 超过5%就算高。</p>
-</blockquote>
-<h4 id="第四行"><a href="#第四行" class="headerlink" title="第四行"></a>第四行</h4><p><code>KiB Mem : 33008723+total, 24753566+free, 15236984 used, 67314576 buff/cache</code></p>
-<p><code>total</code>: 物理内存总量<br><code>free</code>: 空闲内存<br><code>used</code>: 已使用内存<br><code>buff/cache</code>: 缓冲&#x2F;缓存的内存</p>
-<blockquote>
-<p><code>buffer</code>: (写)缓冲区是系统两端处理速度的平衡。通常来说硬盘的写入的速度是性能瓶颈，引入缓冲区是为了减少短期内突发的I&#x2F;O的影响。举个栗子，vim 编辑器并不是每输入一个字符就保存一次，默认是先保存到buffer中，用户触发 <code>:w</code> 命令进行保存时再写入到磁盘。<br><code>cache</code>: (读)缓存区是处理两端速度不匹配的一种折中策略。主要原因是CPU和内存直接的速度差异越来越大。如果假的内存可以和CPU做的一样快，cache就可以不用了。</p>
-</blockquote>
-<h4 id="第五行"><a href="#第五行" class="headerlink" title="第五行"></a>第五行</h4><p><code>KiB Swap: 0 total, 0 free, 0 used. 31221619+avail Mem</code></p>
-<p><code>Swap</code>: 交换分区信息<br><code>total</code>: 交换分区总量<br><code>free</code>: 交换分区空闲<br><code>used</code>: 已使用的空间<br><code>avail</code>: 可用的交换分区</p>
-<blockquote>
-<p>交换分区通常我们说的虚拟内存，是在硬盘中划分一个分区出来。<strong>当物理内存不够用的时候</strong>，内核就会释放 <code>buffers/cache</code> 里一些长时间不使用的程序，然后将这些程序临时放到 <code>Swap</code> 分区中。</p>
-</blockquote>
-<h3 id="进程信息"><a href="#进程信息" class="headerlink" title="进程信息"></a>进程信息</h3><p><code>PID</code>: 进程id<br><code>USER</code>: 进程所有者用户名<br><code>PR</code>: 优先级。数值越大优先级越高<br><code>NI</code>: nice值，负值表示高优先级，正值表示低优先级<br><code>VIRT</code>: 进程使用的虚拟内存总量，单位KB。VIRT&#x3D;SWAP+RES<br><code>SWAP</code>: 进程使用的虚拟内存中被换出的大小，单位KB<br><code>RES</code>: 进程使用的、未被换出的物理内存大小，单位KB，RES&#x3D;CODE+DATA<br><code>SHR</code>: 共享内存大小，单位KB<br><code>S</code>: 进程状态。D表示不可中断的睡眠状态；R表示运行；S表示睡眠；T表示跟踪&#x2F;停止；Z表示僵尸进程。<br><code>%CPU</code>: 上次更新到现在的CPU占用百分比<br><code>%MEM</code>: 进程使用的物理内存百分比<br><code>TIME+</code>: 进程使用的CPU时间总计，单位1&#x2F;100秒<br><code>COMMAND</code>: 命令名&#x2F;命令行</p>
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><ul>
-<li><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a></li>
-<li><a href="https://blog.csdn.net/duzilonglove/article/details/80096567">Linux系统监控——top命令_Storm啊的博客-CSDN博客_linux top监控某个进程</a></li>
-<li><a href="https://einverne.github.io/post/2014/04/top-linux-command.html">每天学习一个命令：top 查看资源占用 | Verne in GitHub</a></li>
-<li><a href="https://linux.die.net/man/1/top">top(1): tasks - Linux man page</a></li>
-</ul>
-]]></content>
-      <categories>
-        <category>工具箱</category>
-      </categories>
-      <tags>
-        <tag>Linux</tag>
       </tags>
   </entry>
   <entry>

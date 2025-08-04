@@ -6,7 +6,7 @@
   <link href="https://fuscoyu.github.io/atom.xml" rel="self"/>
   
   <link href="https://fuscoyu.github.io/"/>
-  <updated>2025-08-02T14:00:49.205Z</updated>
+  <updated>2025-08-04T03:29:21.564Z</updated>
   <id>https://fuscoyu.github.io/</id>
   
   <author>
@@ -15,6 +15,30 @@
   </author>
   
   <generator uri="https://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>Hexo 博客发布流程</title>
+    <link href="https://fuscoyu.github.io/2025/08/04/Hexo%E5%8D%9A%E5%AE%A2%E5%8F%91%E5%B8%83%E6%B5%81%E7%A8%8B/"/>
+    <id>https://fuscoyu.github.io/2025/08/04/Hexo%E5%8D%9A%E5%AE%A2%E5%8F%91%E5%B8%83%E6%B5%81%E7%A8%8B/</id>
+    <published>2025-08-04T02:00:00.000Z</published>
+    <updated>2025-08-04T03:29:21.564Z</updated>
+    
+    <content type="html"><![CDATA[<h1 id="Hexo-博客发布流程"><a href="#Hexo-博客发布流程" class="headerlink" title="Hexo 博客发布流程"></a>Hexo 博客发布流程</h1><p>一直使用 hexo 发布 blog，但是发现有些命令实在是记不住，所以写一篇博客记录一下。</p><h2 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建到草稿</span></span><br><span class="line">hexo new draft 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 测试</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo server --drafts</span><br><span class="line"></span><br><span class="line"><span class="comment"># 发布到post</span></span><br><span class="line">hexo publish post 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 部署到github</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo deploy</span><br><span class="line"></span><br></pre></td></tr></table></figure>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h1 id=&quot;Hexo-博客发布流程&quot;&gt;&lt;a href=&quot;#Hexo-博客发布流程&quot; class=&quot;headerlink&quot; title=&quot;Hexo 博客发布流程&quot;&gt;&lt;/a&gt;Hexo 博客发布流程&lt;/h1&gt;&lt;p&gt;一直使用 hexo 发布 blog，但是发现有些命令实在是记不住，所</summary>
+      
+    
+    
+    
+    <category term="工具箱" scheme="https://fuscoyu.github.io/categories/%E5%B7%A5%E5%85%B7%E7%AE%B1/"/>
+    
+    
+    <category term="blog" scheme="https://fuscoyu.github.io/tags/blog/"/>
+    
+  </entry>
   
   <entry>
     <title>二层网络</title>
