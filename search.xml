@@ -1,352 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>Hexo 博客发布流程</title>
-    <url>/2025/08/04/Hexo%E5%8D%9A%E5%AE%A2%E5%8F%91%E5%B8%83%E6%B5%81%E7%A8%8B/</url>
-    <content><![CDATA[<h1 id="Hexo-博客发布流程"><a href="#Hexo-博客发布流程" class="headerlink" title="Hexo 博客发布流程"></a>Hexo 博客发布流程</h1><p>一直使用 hexo 发布 blog，但是发现有些命令实在是记不住，所以写一篇博客记录一下。</p>
-<h2 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 创建到草稿</span></span><br><span class="line">hexo new draft 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 测试</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo server --drafts</span><br><span class="line"></span><br><span class="line"><span class="comment"># 发布到post</span></span><br><span class="line">hexo publish post 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 部署到github</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo deploy</span><br><span class="line"></span><br></pre></td></tr></table></figure>]]></content>
-      <categories>
-        <category>工具箱</category>
-      </categories>
-      <tags>
-        <tag>blog</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>二层网络</title>
-    <url>/2025/08/02/%E4%BA%8C%E5%B1%82%E7%BD%91%E7%BB%9C/</url>
-    <content><![CDATA[<h1 id="二层网络"><a href="#二层网络" class="headerlink" title="二层网络"></a>二层网络</h1><p>前段时间学习了二、三层网络基础。想用自己的话来总结下目前理解到东西，方便自己复习，如有不对请大家指出, 本篇是二层网络的总结。</p>
-<span id="more"></span>
-
-<h2 id="1-实验环境搭建"><a href="#1-实验环境搭建" class="headerlink" title="1. 实验环境搭建"></a>1. 实验环境搭建</h2><h3 id="1-1-网络拓扑设计"><a href="#1-1-网络拓扑设计" class="headerlink" title="1.1 网络拓扑设计"></a>1.1 网络拓扑设计</h3><p><strong>管理网络配置</strong>（用于SSH远程访问）：</p>
-<ul>
-<li>EIP: 192.168.18.172</li>
-<li>管理网: VPC 172.16.0.0&#x2F;16</li>
-<li>switch, vm1, vm2, vm3 的 eth0 网卡都连接到管理网<ul>
-<li>vm1: 172.16.0.2</li>
-<li>vm2: 172.16.0.3  </li>
-<li>vm3: 172.16.0.4</li>
-<li>switch: 172.16.0.5</li>
-</ul>
-</li>
-</ul>
-<p><strong>二层网络配置</strong>：</p>
-<ul>
-<li>创建网络 n1, n2, n3</li>
-<li>switch 连接 n1, n2, n3 的 eth1, eth2, eth3</li>
-<li>虚拟机二层网络配置：<ul>
-<li>vm1: n1, eth1, 10.0.0.11, MAC: 52:54:65:f1:c5:45</li>
-<li>vm2: n2, eth1, 10.0.0.12, MAC: 52:54:65:12:a7:d0</li>
-<li>vm3: n3, eth1, 10.0.0.13, MAC: 52:54:65:46:10:a1</li>
-</ul>
-</li>
-</ul>
-<h3 id="1-2-虚拟机配置"><a href="#1-2-虚拟机配置" class="headerlink" title="1.2 虚拟机配置"></a>1.2 虚拟机配置</h3><blockquote>
-<p>上述配置只是为了可以用SSH远程访问这些虚拟机，便于后续实验操作。</p>
-</blockquote>
-<h2 id="2-二层网络基础概念"><a href="#2-二层网络基础概念" class="headerlink" title="2. 二层网络基础概念"></a>2. 二层网络基础概念</h2><h3 id="2-1-二层转发原理"><a href="#2-1-二层转发原理" class="headerlink" title="2.1 二层转发原理"></a>2.1 二层转发原理</h3><p>二层网络的核心原理是：<strong>收到报文的目标MAC地址不是自己的MAC地址时，转发给同网络的其他端口</strong>。</p>
-<p>同一个网段通过二层进行通信，也就是使用MAC地址互相访问。但是每个VM并不知道其他VM的MAC地址，应用程序还是用IP进行通信。所以建立网络连接的第一步是解析MAC地址。</p>
-<h3 id="2-2-MAC地址学习机制"><a href="#2-2-MAC地址学习机制" class="headerlink" title="2.2 MAC地址学习机制"></a>2.2 MAC地址学习机制</h3><p>交换机通过<strong>泛洪学习</strong>(Flood &amp; Learn)机制来维护MAC地址表：</p>
-<ol>
-<li><strong>学习阶段</strong>：在端口收到报文时，记录源MAC地址和当前时间到FDB表</li>
-<li><strong>转发阶段</strong>：如果报文的目标MAC能在FDB表中查到，则转发给对应端口</li>
-<li><strong>泛洪阶段</strong>：如果报文的目标MAC是广播地址、未知单播或组播（BUM），发到所有端口</li>
-<li><strong>老化阶段</strong>：FDB表记录的时间超过老化时间后（通常是5分钟），自动删除记录</li>
-</ol>
-<h2 id="3-实验验证"><a href="#3-实验验证" class="headerlink" title="3. 实验验证"></a>3. 实验验证</h2><h3 id="3-1-交换机配置"><a href="#3-1-交换机配置" class="headerlink" title="3.1 交换机配置"></a>3.1 交换机配置</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 安装网桥工具</span></span><br><span class="line">apt install -y bridge-utils</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建 br0 网桥（类似虚拟机交换机），并将 eth1~eth3连接到br0上</span></span><br><span class="line">brctl addbr br0</span><br><span class="line">brctl addif br0 eth1</span><br><span class="line">brctl addif br0 eth2</span><br><span class="line">brctl addif br0 eth3</span><br><span class="line">brctl show</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用所有网络接口</span></span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth1 up</span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth2 up</span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth3 up</span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> br0 up</span><br></pre></td></tr></table></figure>
-
-<h3 id="3-2-虚拟机网络配置"><a href="#3-2-虚拟机网络配置" class="headerlink" title="3.2 虚拟机网络配置"></a>3.2 虚拟机网络配置</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 为虚拟机配置临时IP地址</span></span><br><span class="line"><span class="comment"># vm1</span></span><br><span class="line">ifconfig eth1 10.0.0.11</span><br><span class="line"><span class="comment"># vm2  </span></span><br><span class="line">ifconfig eth1 10.0.0.12</span><br><span class="line"><span class="comment"># vm3</span></span><br><span class="line">ifconfig eth1 10.0.0.13</span><br></pre></td></tr></table></figure>
-
-<h3 id="3-3-ARP协议分析"><a href="#3-3-ARP协议分析" class="headerlink" title="3.3 ARP协议分析"></a>3.3 ARP协议分析</h3><p><strong>实验：vm1 ping vm3</strong></p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># vm1 -&gt; vm3 通信测试</span></span><br><span class="line">root@vm1:~<span class="comment"># ping 10.0.0.13 -c 1</span></span><br><span class="line">PING 10.0.0.13 (10.0.0.13) 56(84) bytes of data.</span><br><span class="line">64 bytes from 10.0.0.13: icmp_seq=1 ttl=64 time=0.596 ms</span><br><span class="line"></span><br><span class="line">--- 10.0.0.13 ping statistics ---</span><br><span class="line">1 packets transmitted, 1 received, 0% packet loss, time 0ms</span><br><span class="line">rtt min/avg/max/mdev = 0.596/0.596/0.596/0.000 ms</span><br></pre></td></tr></table></figure>
-
-<p><strong>抓包分析</strong>：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># vm2 抓包（观察者视角）</span></span><br><span class="line">root@vm2:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line">05:29:50.865544 52:54:65:65:65:6a &gt; ff:ff:ff:ff:ff:ff, ethertype ARP (0x0806), length 42: Request who-has 10.0.0.13 tell 10.0.0.11, length 28</span><br><span class="line"></span><br><span class="line"><span class="comment"># vm3 抓包（目标主机视角）</span></span><br><span class="line">root@vm3:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line"><span class="comment"># vm1 发 ARP 请求找 vm3	第一次通信，未知 MAC 地址</span></span><br><span class="line">05:29:50.862687 52:54:65:65:65:6a &gt; ff:ff:ff:ff:ff:ff, ethertype ARP (0x0806), length 42: Request who-has 10.0.0.13 tell 10.0.0.11, length 28</span><br><span class="line"><span class="comment"># vm3 回应 ARP，但不会缓存 vm1 的 MAC	ARP 响应包是单播，仅 vm1 收到</span></span><br><span class="line">05:29:50.862704 52:54:65:96:16:0c &gt; 52:54:65:65:65:6a, ethertype ARP (0x0806), length 42: Reply 10.0.0.13 is-at 52:54:65:96:16:0c, length 28</span><br><span class="line"><span class="comment"># vm1 发 ICMP 请求找 vm3</span></span><br><span class="line">05:29:50.862982 52:54:65:65:65:6a &gt; 52:54:65:96:16:0c, ethertype IPv4 (0x0800), length 98: 10.0.0.11 &gt; 10.0.0.13: ICMP <span class="built_in">echo</span> request, <span class="built_in">id</span> 2949, <span class="built_in">seq</span> 1, length 64</span><br><span class="line"><span class="comment"># vm3 回 ICMP 给 vm1</span></span><br><span class="line">05:29:50.862992 52:54:65:96:16:0c &gt; 52:54:65:65:65:6a, ethertype IPv4 (0x0800), length 98: 10.0.0.13 &gt; 10.0.0.11: ICMP <span class="built_in">echo</span> reply, <span class="built_in">id</span> 2949, <span class="built_in">seq</span> 1, length 64</span><br><span class="line"><span class="comment"># 隔了 5 秒左右 vm3 发 ARP 请求找 vm1</span></span><br><span class="line">05:29:55.903301 52:54:65:96:16:0c &gt; 52:54:65:65:65:6a, ethertype ARP (0x0806), length 42: Request who-has 10.0.0.11 tell 10.0.0.13, length 28</span><br><span class="line"><span class="comment"># vm1 回应 ARP，但不会缓存 vm3 的 MAC	ARP 响应包是单播，仅 vm3 收到</span></span><br><span class="line">05:29:55.903649 52:54:65:65:65:6a &gt; 52:54:65:96:16:0c, ethertype ARP (0x0806), length 42: Reply 10.0.0.11 is-at 52:54:65:65:65:6a, length 28</span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p><strong>重要发现</strong>：为什么 vm3 会隔了 5 秒左右才发 ARP 请求找 vm1？</p>
-<p>虽然 vm1 发了 ARP 请求，vm3 回答了没错，但ARP 回复不是广播包，是单播给 vm1 的。vm3 回应的时候并不会自动缓存对方（vm1）的 IP-MAC 绑定，这是常见误解。</p>
-</blockquote>
-<h3 id="3-4-交换机FDB表分析"><a href="#3-4-交换机FDB表分析" class="headerlink" title="3.4 交换机FDB表分析"></a>3.4 交换机FDB表分析</h3><p><strong>查看交换机的MAC地址表</strong>：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 到switch上查看交换机的fdb表，也就是mac地址表</span></span><br><span class="line">root@switch:~<span class="comment"># bridge fdb show br br0</span></span><br><span class="line">52:54:65:<span class="built_in">df</span>:02:d1 dev eth1 vlan 1 master br0 permanent</span><br><span class="line">52:54:65:<span class="built_in">df</span>:02:d1 dev eth1 master br0 permanent</span><br><span class="line">33:33:00:00:00:01 dev eth1 self permanent <span class="comment"># ipv6 multicast mac地址</span></span><br><span class="line">01:00:5e:00:00:01 dev eth1 self permanent <span class="comment"># ipv4 multicast mac地址</span></span><br><span class="line">33:33:ff:<span class="built_in">df</span>:02:d1 dev eth1 self permanent <span class="comment"># ipv6 用于NDP邻居发现</span></span><br><span class="line">52:54:65:bf:76:62 dev eth2 vlan 1 master br0 permanent</span><br><span class="line">52:54:65:bf:76:62 dev eth2 master br0 permanent</span><br><span class="line">33:33:00:00:00:01 dev eth2 self permanent</span><br><span class="line">01:00:5e:00:00:01 dev eth2 self permanent</span><br><span class="line">33:33:ff:bf:76:62 dev eth2 self permanent</span><br><span class="line">52:54:65:37:10:42 dev eth3 master br0 permanent</span><br><span class="line">52:54:65:37:10:42 dev eth3 vlan 1 master br0 permanent</span><br><span class="line">52:54:65:46:10:a1 dev eth3 master br0</span><br><span class="line">33:33:00:00:00:01 dev eth3 self permanent</span><br><span class="line">01:00:5e:00:00:01 dev eth3 self permanent</span><br><span class="line">33:33:ff:37:10:42 dev eth3 self permanent</span><br><span class="line">33:33:00:00:00:01 dev br0 self permanent</span><br><span class="line">01:00:5e:00:00:01 dev br0 self permanent</span><br><span class="line">33:33:ff:37:10:42 dev br0 self permanent</span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>其中包含 <code>permanent</code> 的表示bridge和端口的物理地址，不需要关注。</p>
-</blockquote>
-<p><strong>查看动态学习的MAC地址</strong>：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@route1:~<span class="comment"># bridge -statistics fdb show br br0|grep -v perm</span></span><br><span class="line">52:54:65:65:65:6a dev eth1 used 9/9 master br0</span><br><span class="line">52:54:65:96:16:0c dev eth3 used 9/9 master br0</span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>以第一行为例，它表示目标是 <code>52:54:65:65:65:6a</code> 的报文发到 eth1 端口，也就是MAC和端口的映射关系。</p>
-</blockquote>
-<h2 id="4-深入理解"><a href="#4-深入理解" class="headerlink" title="4. 深入理解"></a>4. 深入理解</h2><h3 id="4-1-未知单播泛洪实验"><a href="#4-1-未知单播泛洪实验" class="headerlink" title="4.1 未知单播泛洪实验"></a>4.1 未知单播泛洪实验</h3><p><strong>实验：vm2 向不存在的MAC地址发送ICMP报文</strong></p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># vm2 往 52:54:a7:bb:72:00 发一个icmp报文</span></span><br><span class="line"><span class="comment"># 配置静态arp表，让ping命令不通过arp广播返回解析mac，只发icmp报文，这样vm2的mac地址不会被学习到</span></span><br><span class="line">root@vm2:~<span class="comment"># ip neigh add 10.0.0.10 lladdr 52:54:a7:bb:72:00 dev eth1</span></span><br><span class="line">root@vm2:~<span class="comment"># ping 10.0.0.10 -c 1 -w 1</span></span><br><span class="line">PING 10.0.0.10 (10.0.0.10) 56(84) bytes of data.</span><br><span class="line"></span><br><span class="line">--- 10.0.0.10 ping statistics ---</span><br><span class="line">1 packets transmitted, 0 received, 100% packet loss, time 0ms</span><br><span class="line"></span><br><span class="line"><span class="comment"># switch学习到了vm2的mac，但是没有52:54:a7:bb:72:00的mac</span></span><br><span class="line">root@route1:~<span class="comment"># bridge -statistics fdb show br br0 | grep -v perm</span></span><br><span class="line">32:ee:65:c1:fb:26 dev eth1 used 309/309 master br0 stale</span><br><span class="line">52:54:65:ba:72:bf dev eth2 used 54/8 master br0</span><br><span class="line"></span><br><span class="line"><span class="comment"># vm1和vm3都收到了这个报文，没有回复报文</span></span><br><span class="line">root@vm1:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line">13:03:04.224521 52:54:65:ba:72:bf &gt; 52:54:a7:bb:72:00, ethertype IPv4 (0x0800), length 98: 10.0.0.12 &gt; 10.0.0.10: ICMP <span class="built_in">echo</span> request, <span class="built_in">id</span> 6113, <span class="built_in">seq</span> 1, length 64</span><br><span class="line"></span><br><span class="line">root@vm3:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line">13:03:04.214844 52:54:65:ba:72:bf &gt; 52:54:a7:bb:72:00, ethertype IPv4 (0x0800), length 98: 10.0.0.12 &gt; 10.0.0.10: ICMP <span class="built_in">echo</span> request, <span class="built_in">id</span> 6113, <span class="built_in">seq</span> 1, length 64</span><br></pre></td></tr></table></figure>
-
-<p><strong>分析过程</strong>：</p>
-<ol>
-<li><p><strong>vm2 发出的报文</strong></p>
-<ul>
-<li>由于静态 ARP 已设置，vm2 直接构造了目标 MAC 是 <code>52:54:a7:bb:72:00</code> 的 ICMP 报文，无需 ARP 广播。</li>
-</ul>
-</li>
-<li><p><strong>交换机没有目标 MAC 的 FDB 记录</strong></p>
-<ul>
-<li><code>52:54:a7:bb:72:00</code> 是未知单播，交换机会将其按 BUM（Broadcast, Unknown Unicast, Multicast）方式泛洪到所有端口（除了来源端口）。</li>
-<li>所以 vm1、vm3 都收到这个包。</li>
-</ul>
-</li>
-<li><p><strong>为什么没有回应？</strong></p>
-<ul>
-<li><strong>可能 1</strong>：vm1、vm3 不是 10.0.0.10<ul>
-<li>它们收到包，但并不是目标主机，因此不会回应。</li>
-<li>抓包看到报文到了，但不会处理。</li>
-</ul>
-</li>
-<li><strong>可能 2</strong>：目标主机（MAC 为 <code>52:54:a7:bb:72:00</code>）根本不在网内<ul>
-<li>也许这个 MAC 没有挂载在任何 VM 上，或者主机未启用接口 &#x2F; 未监听。</li>
-</ul>
-</li>
-</ul>
-</li>
-</ol>
-<h3 id="4-2-交换机vs集线器"><a href="#4-2-交换机vs集线器" class="headerlink" title="4.2 交换机vs集线器"></a>4.2 交换机vs集线器</h3><p>之前在大学宿舍中使用叫集线器（Hub）的设备，形态跟交换机有点类似，它们的差异在于：</p>
-<ul>
-<li><strong>集线器</strong>：没有学习能力，对所有报文都泛洪</li>
-<li><strong>交换机</strong>：具有MAC地址学习能力，可以精确转发</li>
-</ul>
-<p>所以集线器只能用于流量低的办公和家用领域，不适合IDC环境。</p>
-<h2 id="5-总结"><a href="#5-总结" class="headerlink" title="5. 总结"></a>5. 总结</h2><p>通过本次实验，我们深入理解了：</p>
-<ol>
-<li><strong>二层网络的基本原理</strong>：基于MAC地址的转发机制</li>
-<li><strong>ARP协议的工作过程</strong>：IP到MAC地址的解析过程</li>
-<li><strong>交换机的学习机制</strong>：通过泛洪学习建立MAC地址表</li>
-<li><strong>BUM流量的处理</strong>：广播、未知单播、组播的泛洪转发</li>
-<li><strong>交换机与集线器的区别</strong>：学习能力是核心差异</li>
-</ol>
-<p>这些知识为理解更复杂的网络架构奠定了基础。</p>
-]]></content>
-      <categories>
-        <category>网络</category>
-      </categories>
-      <tags>
-        <tag>Network</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>ginkgo 学习笔记</title>
-    <url>/2024/03/22/ginkgo%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/</url>
-    <content><![CDATA[<h1 id="ginkgo-学习笔记"><a href="#ginkgo-学习笔记" class="headerlink" title="ginkgo 学习笔记"></a>ginkgo 学习笔记</h1><h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p>(kubebuilder如何写测试用例)<a href="https://book.kubebuilder.io/cronjob-tutorial/writing-tests">https://book.kubebuilder.io/cronjob-tutorial/writing-tests</a><br>(ginkgo和gomega学习笔记)<a href="https://blog.gmem.cc/ginkgo-study-note">https://blog.gmem.cc/ginkgo-study-note</a></p>
-<h2 id="常用测试方法"><a href="#常用测试方法" class="headerlink" title="常用测试方法"></a>常用测试方法</h2><h3 id="TDD-测试驱动开发"><a href="#TDD-测试驱动开发" class="headerlink" title="TDD 测试驱动开发"></a>TDD 测试驱动开发</h3><p>执行test → 失败 → coding → 执行test → 成功</p>
-<h3 id="BDD-行为驱动开发"><a href="#BDD-行为驱动开发" class="headerlink" title="BDD 行为驱动开发"></a>BDD 行为驱动开发</h3><p>TDD 侧重点偏向开发，通过测试用例来规范约束开发者编写出质量更高、bug更少的代码。而BDD更加侧重设计，其要求在设计测试用例时对系统进行定义，倡导使用通用的语言将系统的行为描述出来，将系统设计和测试用例结合起来，以此为驱动进行开发工作。BDD 衍生于 TDD，主要区别就是在于测试的描述上。BDD 使用一种更通俗易懂的文字来描述测试用例，更关注需求的功能，而不是实际结果。BDD 赋予的像阅读句子一样阅读测试的能力带来对测试认知上的转变，有助于我们去考虑如何更好写测试。</p>
-<p><strong>一句话理解 Ginkgo是测试框架  gomega 是Ginkgo首选断言库。</strong></p>
-<h2 id="Ginkgo"><a href="#Ginkgo" class="headerlink" title="Ginkgo"></a>Ginkgo</h2><h3 id="描述功能"><a href="#描述功能" class="headerlink" title="描述功能"></a>描述功能</h3><p>Describe来定义测试套件，Context来分组测试，并且在每个It块里，我们编写一个实际的测试，表达了当满足某个条件（“when …”）应该发生什么（“should …”）。</p>
-<p>当我们使用 “Describe” 时，我们实际上在说，”以下是我将要描述的一系列测试场景和测试用例”</p>
-<p>常用的关键字有</p>
-<p><code>It</code> 是测试例的基本单位，即It包含的代码就算一个测试用例<br><code>Context</code> 和Describe的功能都是将一个或多个测试例归类<br><code>BeforeEach</code> 是每个测试例执行前执行该段代码<br><code>AfterEach</code> 是每个测试例执行后执行该段代码<br><code>JustBeforeEach</code> 是在BeforeEach执行之后，测试例执行之前执行<br><code>BeforeSuite</code> 是在该测试集执行前执行，即该文件夹内的测试例执行之前<br><code>AfterSuite</code> 是在该测试集执行后执行，即该文件夹内的测试例执行完后<br><code>By</code> 是打印信息，内容只能是字符串，只会在测试例失败后打印，一般用于调试和定位问题<br><code>Fail</code> 是标志该测试例运行结果为失败，并打印里面的信息<br>还有一个 <code>Specify</code> 和 <code>It</code> 功能完全一样， <code>It</code> 属于其简写</p>
-<h2 id="gomega"><a href="#gomega" class="headerlink" title="gomega"></a>gomega</h2><p><code>Eventually</code> 用于你期望某个条件最终将为真，但是可能需要一些时间去达到。例如，如果你正在等待一个异步操作的结果，那么你可以使用Eventually来持续检查直到该条件满足或者超过了一个超时时限。它对处理可能有延迟的操作或者某些可能需要多次尝试才能成功的操作非常有用。(阻塞并轮询，直到能通过断言)<br><code>Consistently</code> 用于确保某个条件在给定的一段时间内始终为真。它会在一段时间内多次检查该条件是否满足，如果有任何一个检查失败，那么断言就会失败。它通常用于确保系统的一个状态不会因为异步事件或者其他原因而改变。（检查断言是否在一定时间段内总是通过）</p>
-<p>暂时用到这两个 后面慢慢积累</p>
-<h2 id="使用方式"><a href="#使用方式" class="headerlink" title="使用方式"></a>使用方式</h2><p> <code>ginkgo -r -v</code></p>
-<p>-r: 递归查找test文件<br>-v: 输出详细信息</p>
-<h2 id="开发流程"><a href="#开发流程" class="headerlink" title="开发流程"></a>开发流程</h2><p>kubebuilder 会自动生成好 suite_test.go测试套件<br>       1. 将 envtest 集群配置为从 CRD 目录 Kubebuilder 脚手架中读取 CRD。<br>       2. 使用 envtest 创建 k8s 控制层的测试环境 （api-server, etcd, kubectl）<br>       3. 默认是不会添加自定义的controller到测试集群需要手动添加下（需要开发）</p>
-<p>以自定义controller为例</p>
-<figure class="highlight golang"><table><tr><td class="code"><pre><span class="line"><span class="keyword">var</span> _ = BeforeSuite(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line"> 	ctx, cancel = context.WithCancel(context.TODO()) <span class="comment">// 主要注意添加context</span></span><br><span class="line">    ...</span><br><span class="line">	k8sClient, err = client.New(cfg, client.Options&#123;Scheme: scheme.Scheme&#125;)</span><br><span class="line">	Expect(err).NotTo(HaveOccurred())</span><br><span class="line">	Expect(k8sClient).NotTo(BeNil())</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Create a new manager to run the controller</span></span><br><span class="line">	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options&#123;</span><br><span class="line">		Scheme: scheme.Scheme,</span><br><span class="line">	&#125;)</span><br><span class="line">	Expect(err).ToNot(HaveOccurred())</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Create a new test of the controller</span></span><br><span class="line">	err = (&amp;TestReconciler&#123;</span><br><span class="line">		Client: k8sManager.GetClient(),</span><br><span class="line">		Scheme: k8sManager.GetScheme(),</span><br><span class="line">	&#125;).SetupWithManager(k8sManager)</span><br><span class="line">	Expect(err).ToNot(HaveOccurred())</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Start the manager</span></span><br><span class="line">	<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="keyword">defer</span> GinkgoRecover()</span><br><span class="line">		err = k8sManager.Start(ctx) <span class="comment">// The manager will run in the background</span></span><br><span class="line">		Expect(err).ToNot(HaveOccurred(), <span class="string">&quot;failed to run manager&quot;</span>)</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> _ = AfterSuite(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cancel() <span class="comment">// 测试完成后 清理controller</span></span><br><span class="line">	By(<span class="string">&quot;tearing down the test environment&quot;</span>)</span><br><span class="line">	err := testEnv.Stop()</span><br><span class="line">	Expect(err).NotTo(HaveOccurred())</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
-
-<h2 id="如何写测试用例（需要开发）"><a href="#如何写测试用例（需要开发）" class="headerlink" title="如何写测试用例（需要开发）"></a>如何写测试用例（需要开发）</h2><figure class="highlight golang"><table><tr><td class="code"><pre><span class="line">Describe(<span class="string">&quot;InstanceController&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;  <span class="comment">// 声明为虚拟机controller的测试用例</span></span><br><span class="line">    Context(<span class="string">&quot;When instance create&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123; <span class="comment">//细分测试场景 声明为虚拟机创建后的测试用例</span></span><br><span class="line">        It(<span class="string">&quot;测试用例&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">()</span></span>&#123; <span class="comment">// 测试用例 虚拟机关机，开机等等</span></span><br><span class="line">            ...</span><br><span class="line">        &#125;)</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
-]]></content>
-      <categories>
-        <category>Golang</category>
-      </categories>
-      <tags>
-        <tag>Go</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>kubevirt make cluster-sync pull 镜像timeout</title>
-    <url>/2024/02/21/kubevirt:%20make%20cluster-sync%20pull%20%E9%95%9C%E5%83%8Ftimeout/</url>
-    <content><![CDATA[<blockquote>
-<p>尝试在本地编译 kubevirt 源码，在执行 make cluster-sync 发生报错。<br>环境信息:<br>root@kubevirt:~&#x2F;kubevirt# lsb_release -a<br>Distributor ID: Ubuntu<br>Description:    Ubuntu 22.04 LTS<br>Release:        22.04<br>Codename:       jammy</p>
-</blockquote>
-<h2 id="操作记录"><a href="#操作记录" class="headerlink" title="操作记录"></a>操作记录</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># pull kubevirt</span></span><br><span class="line">git <span class="built_in">clone</span> git@github.com:kubevirt/kubevirt.git</span><br><span class="line"><span class="comment"># 切换tag</span></span><br><span class="line">git checkout v1.1.1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用kind创建k8s</span></span><br><span class="line"><span class="built_in">export</span> KUBEVIRT_PROVIDER=kind-1.27</span><br><span class="line">make cluster-up</span><br><span class="line"></span><br><span class="line"><span class="comment"># 编译源码并同步到k8s</span></span><br><span class="line">make cluster-sync</span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">INFO: Repository fedora_with_test_tooling instantiated at:</span><br><span class="line">  /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">Repository rule container_pull defined at:</span><br><span class="line">  /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl:243:33: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">ERROR: An error occurred during the fetch of repository <span class="string">&#x27;fedora_with_test_tooling&#x27;</span>:</span><br><span class="line">   Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: fetching container_pull rule //external:fedora_with_test_tooling: Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/containerimages/BUILD.bazel:86:16: //containerimages:fedora-with-test-tooling depends on @fedora_with_test_tooling//image:image <span class="keyword">in</span> repository @fedora_with_test_tooling wh</span><br><span class="line">ich failed to fetch. no such package <span class="string">&#x27;@fedora_with_test_tooling//image&#x27;</span>: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downlo</span><br><span class="line">aded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io</span><br><span class="line">/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0ebfd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: Analysis of target <span class="string">&#x27;//:push-fedora-with-test-tooling-container-disk&#x27;</span> failed; build aborted:</span><br><span class="line">INFO: Elapsed time: 600.464s</span><br><span class="line">INFO: 0 processes.</span><br></pre></td></tr></table></figure>
-<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>报错信息是可以看到是 pull command failed: timed out. Elapsed time: 600.464s<br>下载镜像超时有两种可能<br>1.无法访问仓库导致的超时(https握手失败会立即报错不会等待600s这么久，排除);<br>2.因为镜像太大导致的下载镜像超时；</p>
-<h3 id="因为镜像太大导致的下载镜像超时"><a href="#因为镜像太大导致的下载镜像超时" class="headerlink" title="因为镜像太大导致的下载镜像超时"></a>因为镜像太大导致的下载镜像超时</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@kubevirt:~/kubevirt<span class="comment"># ps -ef|grep download</span></span><br><span class="line">root     3162711 3146984  0 09:17 ?        00:00:00 /root/.cache/bazel/_bazel_root/install/7e78030801a38f836b1891b02e25eaaa/process-wrapper --<span class="built_in">timeout</span>=800 --kill_delay=15 /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_image_base/image -os linux -os-version  -os-features -architecture amd64 -variant  -features  -name gcr.io/distroless/base@sha256:6c871aa3c9019984dfd7f520635bd658d740ad20c6268a82faa433f69dfc9a0b</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入到bazel server 查看镜像是否下载</span></span><br><span class="line">root@kubevirt:~/kubevirt<span class="comment"># docker exec -it -uroot kubevirt-bazel-server bash</span></span><br><span class="line"></span><br><span class="line">[root@kubevirt kubevirt]<span class="comment"># ls -lh /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/</span></span><br><span class="line">total 671M</span><br><span class="line">-rwxr-xr-x 1 root root   64 Feb 20 01:20 000.sha256</span><br><span class="line">-rw-r--r-- 1 root root 601M Feb 20 01:30 000.tar.gz</span><br><span class="line">-rwxr-xr-x 1 root root  492 Feb 20 01:30 BUILD</span><br><span class="line">-rwxr-xr-x 1 root root 1.2K Feb 20 01:20 config.json</span><br><span class="line">-rwxr-xr-x 1 root root   71 Feb 20 01:20 digest</span><br><span class="line">lrwxrwxrwx 1 root root  110 Feb 20 01:30 image.digest -&gt; /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/digest</span><br><span class="line">-rwxr-xr-x 1 root root  530 Feb 20 01:20 manifest.json</span><br><span class="line">[root@kubevirt kubevirt]<span class="comment">#</span></span><br></pre></td></tr></table></figure>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>可以看到镜像下载了一部分与我们分析情况一致，镜像太大或着网速太慢导致下载超时。查询rules_docker文档，为了防止其他镜像下载超时这里更改 PULLER_TIMEOUT 环境变量。<br>修改 <strong>.bazelrc</strong> 文件 增加 <strong>–action_env&#x3D;PULLER_TIMEOUT&#x3D;10000</strong><br><code>build:x86_64 --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo --compilation_mode=dbg --action_env=PULLER_TIMEOUT=10000</code></p>
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://github.com/bazelbuild/rules_docker/blob/master/docs/container.md#container_pull">rules_docker&#x2F;docs&#x2F;container.md at master · bazelbuild&#x2F;rules_docker</a></p>
-]]></content>
-      <categories>
-        <category>云计算</category>
-      </categories>
-      <tags>
-        <tag>kubevirt</tag>
-        <tag>kubernetes</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>每天学习一个命令: mount 挂载文件系统</title>
-    <url>/2022/11/10/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-mount-%E6%8C%82%E8%BD%BD%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/</url>
-    <content><![CDATA[<blockquote>
-<p>mount 挂载文件系统。它提供一个可以访问整个<a href="https://en.wikipedia.org/wiki/File_system">文件系统</a>的目录。</p>
-</blockquote>
-<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p><strong>下面这个例子是挂载 &#x2F;dev&#x2F;sdd1 分区到 &#x2F;data 目录</strong></p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># lsblk</span></span><br><span class="line">NAME                   MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT</span><br><span class="line">sda                      8:0    0 931.5G  0 disk</span><br><span class="line">└─sda1                   8:1    0 931.5G  0 part /</span><br><span class="line">sdb                      8:16   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdc                      8:32   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdd                      8:48   0 931.5G  0 disk</span><br><span class="line">└─sdd1                   8:49   0 931.5G  0 part </span><br><span class="line">sde                      8:64   0 931.5G  0 disk</span><br><span class="line">└─sde1                   8:65   0 931.5G  0 part</span><br><span class="line">sdf                      8:80   0 931.5G  0 disk</span><br><span class="line">└─sdf1                   8:81   0 931.5G  0 part</span><br><span class="line">sdg                      8:96   0   3.7T  0 disk</span><br><span class="line">└─sdg1                   8:97   0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sdh                      8:112  0   3.7T  0 disk</span><br><span class="line">└─sdh1                   8:113  0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sr0                     11:0    1  1024M  0 rom</span><br><span class="line"></span><br><span class="line">// 格式化分区</span><br><span class="line">root@compute:~<span class="comment"># mkfs.ext4 /dev/sdd1</span></span><br><span class="line"></span><br><span class="line">// 创建挂载点</span><br><span class="line">root@compute:~<span class="comment"># mkdir /data</span></span><br><span class="line"></span><br><span class="line">// 挂载 /dev/sdd1 到 /data 目录</span><br><span class="line">root@compute:~<span class="comment"># mount /dev/sdd1 /data</span></span><br><span class="line"></span><br><span class="line">// 查看挂载信息</span><br><span class="line">root@compute:~<span class="comment"># mount</span></span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">/dev/sdd1 on /data <span class="built_in">type</span> ext4 (rw,relatime,data=ordered)</span><br></pre></td></tr></table></figure>
-
-<h2 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h2><h3 id="显示所有已经挂载的文件系统"><a href="#显示所有已经挂载的文件系统" class="headerlink" title="显示所有已经挂载的文件系统"></a>显示所有已经挂载的文件系统</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount </span><br></pre></td></tr></table></figure>
-
-<h3 id="挂载设备到目录"><a href="#挂载设备到目录" class="headerlink" title="挂载设备到目录"></a>挂载设备到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 以下是标准格式</span></span><br><span class="line">mount [-t <span class="built_in">type</span>] device <span class="built_in">dir</span></span><br></pre></td></tr></table></figure>
-<p><code>-t type</code>: mount 命令会检测到文件系统。参数是可选项。</p>
-<h3 id="挂载-ISO-镜像到目录"><a href="#挂载-ISO-镜像到目录" class="headerlink" title="挂载 ISO 镜像到目录"></a>挂载 ISO 镜像到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount ISO <span class="built_in">dir</span> -o ro</span><br></pre></td></tr></table></figure>
-<p><code>-o ro</code>: ISO是只读设备，禁止进行修改。</p>
-]]></content>
-      <categories>
-        <category>工具箱</category>
-      </categories>
-      <tags>
-        <tag>Linux</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>每天学习一个命令: vmstat 统计系统资源使用</title>
-    <url>/2022/11/07/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-vmstat-%E7%BB%9F%E8%AE%A1%E7%B3%BB%E7%BB%9F%E8%B5%84%E6%BA%90%E4%BD%BF%E7%94%A8/</url>
-    <content><![CDATA[<blockquote>
-<p>vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 活动信息。<br>生成的第一个报告给出了自上次重新启动依赖的平均值。优势是可以按周期或实时采集上述信息。</p>
-</blockquote>
-<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 1  0      0 759052 1845192 99157744    0    0     0    50    0    0  2  1 96  1  0</span><br></pre></td></tr></table></figure>
-<h3 id="解释输出信息"><a href="#解释输出信息" class="headerlink" title="解释输出信息"></a>解释输出信息</h3><p><code>procs</code>:</p>
-<pre><code>r: 正在运行的或者等待CPU运行的进程数。当这个值长时间超过了CPU个数，就会出现CPU瓶颈。一般负载大于3就算比较高，大于5是高，大于10系统就不正常。
-b: 等待 I/O 完成的阻塞的进程数。
-</code></pre>
-<p><code>memory</code>: </p>
-<pre><code>以下参数会受到 --unit 参数的影响
-
-swpd: 交换内存使用量。
-free: 空闲内存的数量。
-buff: 缓冲区内存使用量。
-cache: 缓存区内存使用量。
-incat: 禁用的内存数量。(-a option)
-active: 可用的内存数量。(-a option)
-</code></pre>
-<p><code>swap</code>:</p>
-<pre><code>&gt; 以下参数会受到 `--unit` 参数的影响
-
-si: 从磁盘交换到内存的内存量(/s)。
-so: 从内存交换到磁盘内存量(/s)。
-</code></pre>
-<p><code>io</code>:</p>
-<pre><code>bi: 从块设备接受的块(block/s)。
-bo: 发送到块设备的块(block/s)。
-</code></pre>
-<p><code>system</code>:</p>
-<pre><code>in: 每秒钟系统中断数，包括时钟中断。
-cs: 每秒钟系统切换上下文的次数。
-</code></pre>
-<p><code>cpu</code>:</p>
-<pre><code>以下参数之和是总的CPU时间。
-
-us: CPU在用户空间所占用的时间。
-sy: CPU在内核空间所占用的时间。
-id: CPU空闲时间。
-wa: CPU在等待IO所占用的实际。
-st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time` 维持在很高的数值上，大概率是服务器创建虚拟机太多。)
-</code></pre>
-<h3 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h3><h4 id="每2秒显示报告共5次"><a href="#每2秒显示报告共5次" class="headerlink" title="每2秒显示报告共5次"></a>每2秒显示报告共5次</h4><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat 2 5</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 0  1      0 757084 1844672 99160048    0    0     0    50    0    0  2  1 96  1  0</span><br><span class="line"> 2  1      0 756924 1844672 99160096    0    0     8   604 4883 9736  4  1 95  1  0</span><br><span class="line"> 0  0      0 757040 1844672 99160144    0    0     8   444 3395 8276  2  0 97  1  0</span><br><span class="line"> 0  0      0 757600 1844672 99160184    0    0     0   466 2905 7775  1  0 99  1  0</span><br><span class="line"> 0  0      0 758116 1844676 99160184    0    0     0  2440 3070 7604  1  0 99  1  0</span><br></pre></td></tr></table></figure>
-
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://manned.org/vmstat#head2">vmstat - manned.org</a><br><a href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解CPU steal time - MKY-门可意 - 博客园</a><br><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a><br><a href="https://www.cnblogs.com/ggjucheng/archive/2012/01/05/2312625.html">Linux vmstat命令实战详解 - ggjucheng - 博客园</a></p>
-]]></content>
-      <categories>
-        <category>工具箱</category>
-      </categories>
-      <tags>
-        <tag>Linux</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>每天学习一个命令: top 显示Linux任务</title>
-    <url>/2022/11/03/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-top-%E6%98%BE%E7%A4%BALinux%E4%BB%BB%E5%8A%A1/</url>
-    <content><![CDATA[<blockquote>
-<p> top 命令提供了正在运行的linux系统的动态实时的监控信息。常用与排查系统性能问题。</p>
-</blockquote>
-<h2 id="top常用命令"><a href="#top常用命令" class="headerlink" title="top常用命令"></a>top常用命令</h2><p>命令格式:<br><code>top [-] [d] [p] [q] [c] [C] [S] [n]</code><br>参数说明：<br><code>d</code>: 指定每两次屏幕信息刷新之间的时间间隔。当然用户可以使用s交互命令来改变之。 <code>top -d 1</code> ，则top每隔1秒刷新显示一次<br><code>p</code>: 通过指定监控进程ID来仅仅监控某个进程的状态。<code>top -p 16091</code> 只看某一个进程的<br><code>c</code>: 显示整个命令行而不只是显示命令名</p>
-<p>在top命令的显示窗口，我们还可以输入以下字母，进行一些交互:<br><code>h</code>或<code>?</code>: 显示帮助画面，给出一些简短的命令总结说明。<br><code>q</code>: 退出程序。<br><code>M</code>: 根据驻留内存大小进行排序。<strong>这个要记住</strong><br><code>P</code>: 根据CPU使用百分比大小进行排序。<strong>这个要记住</strong><br><code>T</code>: 根据时间&#x2F;累计时间进行排序。</p>
-<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">top</span><br></pre></td></tr></table></figure>
-
-<p>top 命令区分为两个部分，上面为统计部分，下面为进程信息。</p>
-<p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/Untitled.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/Untitled.png"  lazyload></a></p>
-<h3 id="系统统计信息"><a href="#系统统计信息" class="headerlink" title="系统统计信息"></a>系统统计信息</h3><h4 id="第一行"><a href="#第一行" class="headerlink" title="第一行"></a>第一行</h4><p><code>top - 11:11:40 up 4 days, 20:30, 2 users, load average: 0.89, 0.96, 3.77</code></p>
-<p>系统时间，已运行天数，登录用户数，1分钟，5分钟，15分钟系统平均负载</p>
-<h4 id="第二行"><a href="#第二行" class="headerlink" title="第二行"></a>第二行</h4><p><code>Tasks: 969 total, 2 running, 682 sleeping, 0 stopped, 1 zombie</code><br>运行的任务数，总量：969；运行中：2；睡眠：682；停止：0；僵尸进程：1；</p>
-<h4 id="第三行"><a href="#第三行" class="headerlink" title="第三行"></a>第三行</h4><p><code>%Cpu(s): 11.3 us, 6.2 sy, 0.0 ni, 82.3 id, 0.1 wa, 0.0 hi, 0.0 si, 0.0 st</code></p>
-<p><code>us</code>: (user)用户空间占用CPU百分比<br><code>sy</code>: (system)系统空间占用CPU百分比<br><code>ni</code>: (nice)改变过优先级的进程占用CPU百分比<br><code>id</code>: (idle)处于空闲状态占用CPU百分比<br><code>hi</code>: (Hardware interrputs) 硬中断占用CPU百分比<br><code>si</code>: (Software interrputs) 软中断占用CPU百分比<br><code>st</code>: (Steal Time) <a href="https://www.cnblogs.com/menkeyi/p/6732020.html">虚拟机窃取CPU时间</a>是虚拟 CPU 在管理程序为另一个虚拟处理器提供服务时等待真实 CPU 的时间百分比</p>
-<blockquote>
-<p>需要关注 <code>us, sy, wa</code> 这3个值占用是否高。多少算高？<code>us</code> 一般超过75%就算高，<code>sy</code> 一般超过30%就算高，<code>wa</code> 超过5%就算高。</p>
-</blockquote>
-<h4 id="第四行"><a href="#第四行" class="headerlink" title="第四行"></a>第四行</h4><p><code>KiB Mem : 33008723+total, 24753566+free, 15236984 used, 67314576 buff/cache</code></p>
-<p><code>total</code>: 物理内存总量<br><code>free</code>: 空闲内存<br><code>used</code>: 已使用内存<br><code>buff/cache</code>: 缓冲&#x2F;缓存的内存</p>
-<blockquote>
-<p><code>buffer</code>: (写)缓冲区是系统两端处理速度的平衡。通常来说硬盘的写入的速度是性能瓶颈，引入缓冲区是为了减少短期内突发的I&#x2F;O的影响。举个栗子，vim 编辑器并不是每输入一个字符就保存一次，默认是先保存到buffer中，用户触发 <code>:w</code> 命令进行保存时再写入到磁盘。<br><code>cache</code>: (读)缓存区是处理两端速度不匹配的一种折中策略。主要原因是CPU和内存直接的速度差异越来越大。如果假的内存可以和CPU做的一样快，cache就可以不用了。</p>
-</blockquote>
-<h4 id="第五行"><a href="#第五行" class="headerlink" title="第五行"></a>第五行</h4><p><code>KiB Swap: 0 total, 0 free, 0 used. 31221619+avail Mem</code></p>
-<p><code>Swap</code>: 交换分区信息<br><code>total</code>: 交换分区总量<br><code>free</code>: 交换分区空闲<br><code>used</code>: 已使用的空间<br><code>avail</code>: 可用的交换分区</p>
-<blockquote>
-<p>交换分区通常我们说的虚拟内存，是在硬盘中划分一个分区出来。<strong>当物理内存不够用的时候</strong>，内核就会释放 <code>buffers/cache</code> 里一些长时间不使用的程序，然后将这些程序临时放到 <code>Swap</code> 分区中。</p>
-</blockquote>
-<h3 id="进程信息"><a href="#进程信息" class="headerlink" title="进程信息"></a>进程信息</h3><p><code>PID</code>: 进程id<br><code>USER</code>: 进程所有者用户名<br><code>PR</code>: 优先级。数值越大优先级越高<br><code>NI</code>: nice值，负值表示高优先级，正值表示低优先级<br><code>VIRT</code>: 进程使用的虚拟内存总量，单位KB。VIRT&#x3D;SWAP+RES<br><code>SWAP</code>: 进程使用的虚拟内存中被换出的大小，单位KB<br><code>RES</code>: 进程使用的、未被换出的物理内存大小，单位KB，RES&#x3D;CODE+DATA<br><code>SHR</code>: 共享内存大小，单位KB<br><code>S</code>: 进程状态。D表示不可中断的睡眠状态；R表示运行；S表示睡眠；T表示跟踪&#x2F;停止；Z表示僵尸进程。<br><code>%CPU</code>: 上次更新到现在的CPU占用百分比<br><code>%MEM</code>: 进程使用的物理内存百分比<br><code>TIME+</code>: 进程使用的CPU时间总计，单位1&#x2F;100秒<br><code>COMMAND</code>: 命令名&#x2F;命令行</p>
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><ul>
-<li><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a></li>
-<li><a href="https://blog.csdn.net/duzilonglove/article/details/80096567">Linux系统监控——top命令_Storm啊的博客-CSDN博客_linux top监控某个进程</a></li>
-<li><a href="https://einverne.github.io/post/2014/04/top-linux-command.html">每天学习一个命令：top 查看资源占用 | Verne in GitHub</a></li>
-<li><a href="https://linux.die.net/man/1/top">top(1): tasks - Linux man page</a></li>
-</ul>
-]]></content>
-      <categories>
-        <category>工具箱</category>
-      </categories>
-      <tags>
-        <tag>Linux</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>搭建Miniflux</title>
-    <url>/2022/07/21/%E6%90%AD%E5%BB%BAMiniflux/</url>
-    <content><![CDATA[<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://miniflux.app/docs/installation.html#docker">Installation Instructions</a><br><a href="https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal">Certbot Instructions | Certbot</a></p>
-<blockquote>
-<p>之前使用 fresh RSS自建源，发现<a href="https://www.ixiqin.com/">白宦成 - 独立开发者记录</a>的rss源。无法订阅后台报xml解析的错误。网上搜索无果后，就有了换平台的想法。偶然看到这篇文章<a href="https://lukesingham.com/rss-feed-reader/">The Best Self-Hosted RSS Feed Readers</a>，对目前自建rss托管平台进行对比。最终miniflux以8.5的高分胜出。我最喜欢的界面简洁，以下是我的安装记录。</p>
-</blockquote>
-<p>我已有的一台vps,域名都已经注册好了。使用场景是 通过nginx反向代理到miniflux，而且必须使用https，毕竟自己的平台安全还是要有的。</p>
-<p>以下是我的搭建步骤：</p>
-<h2 id="安装miniflux"><a href="#安装miniflux" class="headerlink" title="安装miniflux"></a>安装miniflux</h2><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">mkdir miniflux &amp;&amp; cd miniflux</span><br></pre></td></tr></table></figure>
-
-<p><code>vim docker-compose.yml</code></p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">version: &#x27;3.4&#x27;</span><br><span class="line">services:</span><br><span class="line">  miniflux:</span><br><span class="line">    image: miniflux/miniflux:latest</span><br><span class="line">    ports:</span><br><span class="line">      - &quot;8080:8080&quot; # 端口号</span><br><span class="line">    depends_on:</span><br><span class="line">      - db</span><br><span class="line">    environment:</span><br><span class="line">      - DATABASE_URL=postgres://miniflux:secret@db/miniflux?sslmode=disable</span><br><span class="line">      - RUN_MIGRATIONS=1</span><br><span class="line">      - CREATE_ADMIN=1</span><br><span class="line">      - ADMIN_USERNAME=xxxxx # 管理员用户名</span><br><span class="line">      - ADMIN_PASSWORD=xxxxx # 管理员密码</span><br><span class="line">    restart: unless-stopped</span><br><span class="line">  db:</span><br><span class="line">    image: postgres:latest</span><br><span class="line">    environment:</span><br><span class="line">      - POSTGRES_USER=miniflux</span><br><span class="line">      - POSTGRES_PASSWORD=secret</span><br><span class="line">    volumes:</span><br><span class="line">      - miniflux-db:/var/lib/postgresql/data</span><br><span class="line">    healthcheck:</span><br><span class="line">      test: [&quot;CMD&quot;, &quot;pg_isready&quot;, &quot;-U&quot;, &quot;miniflux&quot;]</span><br><span class="line">      interval: 10s</span><br><span class="line">      start_period: 30s</span><br><span class="line">volumes:</span><br><span class="line">  miniflux-db:</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># 首先启动db</span><br><span class="line">docker-compose up -d db</span><br><span class="line"></span><br><span class="line"># 然后启动miniflux</span><br><span class="line">docker-compose up miniflux</span><br><span class="line"></span><br><span class="line"># 运行数据迁移</span><br><span class="line">docker-compose exec miniflux /usr/bin/miniflux -migrate</span><br><span class="line"></span><br><span class="line"># 创建第一个用户</span><br><span class="line">docker-compose exec miniflux /usr/bin/miniflux -create-admin</span><br></pre></td></tr></table></figure>
-
-<h2 id="安装nginx"><a href="#安装nginx" class="headerlink" title="安装nginx"></a>安装nginx</h2><h3 id="创建证书"><a href="#创建证书" class="headerlink" title="创建证书"></a>创建证书</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">certbot --nginx</span><br></pre></td></tr></table></figure>
-
-<h3 id="配置nginx反向代理"><a href="#配置nginx反向代理" class="headerlink" title="配置nginx反向代理"></a>配置nginx反向代理</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">mkdir /home/ubuntu/nginx &amp;&amp; cd /home/ubunt/nginx</span><br><span class="line">mkdir -p conf/nginx/conf.d</span><br></pre></td></tr></table></figure>
-<p>创建文件 <code>vim conf/nginx/conf.d/miniflux.conf</code></p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">server &#123;</span><br><span class="line">    listen 80;</span><br><span class="line">    server_name &lt;domain&gt;; # 修改域名</span><br><span class="line">    server_tokens off;</span><br><span class="line"></span><br><span class="line">    location /.well-known/acme-challenge/ &#123;</span><br><span class="line">        root /var/www/certbot;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    location / &#123;</span><br><span class="line">        return 301 https://$host$request_uri;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">server &#123;</span><br><span class="line">    listen 443 ssl;</span><br><span class="line">    server_name  &lt;domain&gt;; # 修改域名</span><br><span class="line">    server_tokens off;</span><br><span class="line">    resolver 127.0.0.11;</span><br><span class="line">    set $upstream 127.0.0.1:8080;</span><br><span class="line"></span><br><span class="line">    ssl_certificate /etc/letsencrypt/live/fuscoyu.site/fullchain.pem;</span><br><span class="line">    ssl_certificate_key /etc/letsencrypt/live/fuscoyu.site/privkey.pem;</span><br><span class="line">    include /etc/letsencrypt/options-ssl-nginx.conf;</span><br><span class="line">    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;</span><br><span class="line"></span><br><span class="line">    location / &#123;</span><br><span class="line">        proxy_pass  http://$upstream;</span><br><span class="line">        proxy_set_header    Host                $http_host;</span><br><span class="line">        proxy_set_header    X-Real-IP           $remote_addr;</span><br><span class="line">        proxy_set_header    X-Forwarded-For     $proxy_add_x_forwarded_for;</span><br><span class="line">        proxy_set_header  X-Forwarded-Ssl     on;</span><br><span class="line">        proxy_set_header  X-Forwarded-Proto   $scheme;</span><br><span class="line">        proxy_set_header  X-Frame-Options     SAMEORIGIN;</span><br><span class="line"></span><br><span class="line">        client_max_body_size        100m;</span><br><span class="line">        client_body_buffer_size     128k;</span><br><span class="line"></span><br><span class="line">        proxy_buffer_size           4k;</span><br><span class="line">        proxy_buffers               4 32k;</span><br><span class="line">        proxy_busy_buffers_size     64k;</span><br><span class="line">        proxy_temp_file_write_size  64k;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="使用docker-compse启动nginx"><a href="#使用docker-compse启动nginx" class="headerlink" title="使用docker-compse启动nginx"></a>使用docker-compse启动nginx</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">version: &#x27;3&#x27;</span><br><span class="line"></span><br><span class="line">services:</span><br><span class="line">  nginx:</span><br><span class="line">    image: nginx:1.21.6</span><br><span class="line">    container_name: webserver</span><br><span class="line">    restart: unless-stopped</span><br><span class="line">    volumes:</span><br><span class="line">      - /home/ubuntu/nginx/conf/nginx:/etc/nginx</span><br><span class="line">      - /etc/letsencrypt:/etc/letsencrypt</span><br><span class="line">    network_mode: host # 使用主机网卡，不然nginx内部访问不到miniflux端口</span><br><span class="line">    ports:</span><br><span class="line">      - 80:80</span><br><span class="line">      - 443:443</span><br></pre></td></tr></table></figure>
-
-
-<h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>在浏览器地址栏中输入你的域名，输入配置文件中用户名密码。<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195518.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195518.png"  lazyload></a></p>
-<h2 id="新增源"><a href="#新增源" class="headerlink" title="新增源"></a>新增源</h2><p>如何找呢订阅源呢，推荐你上<a href="https://docs.rsshub.app/">介绍 | RSSHub</a> 。还可以Chrome浏览器上安装插件<a href="https://chrome.google.com/webstore/detail/rsshub-radar/kefjpfngnndepjbopdmoebkipbgkggaa">RSSHub Radar - Chrome 网上应用店</a> ，它可以提示你那些网站可以订阅RSS源 。</p>
-<p>点击复制<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200042.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200042.png"  lazyload></a></p>
-<p>点击 源-&gt;新增源  粘贴刚才复制的网址并点击查找源<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200321.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200321.png"  lazyload></a></p>
-<p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200607.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200607.png"  lazyload></a></p>
-<h2 id="手机使用Reader访问"><a href="#手机使用Reader访问" class="headerlink" title="手机使用Reader访问"></a>手机使用Reader访问</h2><p>点击 设置-&gt;集成-&gt;启用Google Reader&#x2F;Fever，设置阅读器访问的用户名密码<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195446.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195446.png"  lazyload></a></p>
-<p>在手机上我使用Reader5，使用配置如下 我这里以Google reader为例<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195424.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195424.png"  lazyload></a></p>
-<p>输入你的域名，这里的用户名密码是上面集成中设置的。<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195336.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195336.png"  lazyload></a></p>
-<p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/IMG_2349.PNG"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/IMG_2349.PNG"  lazyload></a></p>
-<h1 id="结语"><a href="#结语" class="headerlink" title="结语"></a>结语</h1><p>以上就是我的搭建的miniflux的记录，一起折腾吧。这里推荐大家一些我常看的大佬的博客。<br><a href="https://www.ixiqin.com/">白宦成 - 独立开发者记录</a><br><a href="https://jdhao.github.io/">jdhao’s digital space</a><br><a href="https://someonegao.com/">某高老师的博客 - 人间观察</a><br><a href="https://coolshell.cn/">酷壳 – CoolShell.cn</a></p>
-]]></content>
-      <categories>
-        <category>工具箱</category>
-      </categories>
-      <tags>
-        <tag>RSS</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>Kubernetes上搭建Jenkins</title>
     <url>/2022/02/04/Kubernetes%E4%B8%8A%E6%90%AD%E5%BB%BAJenkins/</url>
     <content><![CDATA[<h1 id="k8s上搭建Jenkins"><a href="#k8s上搭建Jenkins" class="headerlink" title="k8s上搭建Jenkins"></a>k8s上搭建Jenkins</h1><h2 id="一、搭建k8s集群环境"><a href="#一、搭建k8s集群环境" class="headerlink" title="一、搭建k8s集群环境"></a>一、搭建k8s集群环境</h2><p>使用<a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">kubeadm</a>工具进行kubernetes集群安装</p>
@@ -385,6 +39,18 @@ st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time`
       <tags>
         <tag>Jenkins</tag>
         <tag>Kubernetes</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Hexo 博客发布流程</title>
+    <url>/2025/08/04/Hexo%E5%8D%9A%E5%AE%A2%E5%8F%91%E5%B8%83%E6%B5%81%E7%A8%8B/</url>
+    <content><![CDATA[<h1 id="Hexo-博客发布流程"><a href="#Hexo-博客发布流程" class="headerlink" title="Hexo 博客发布流程"></a>Hexo 博客发布流程</h1><p>一直使用 hexo 发布 blog，但是发现有些命令实在是记不住，所以写一篇博客记录一下。</p>
+<h2 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 创建到草稿</span></span><br><span class="line">hexo new draft 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 测试</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo server --drafts</span><br><span class="line"></span><br><span class="line"><span class="comment"># 发布到post</span></span><br><span class="line">hexo publish post 我的第一篇博客</span><br><span class="line"></span><br><span class="line"><span class="comment"># 部署到github</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate &amp;&amp; hexo deploy</span><br><span class="line"></span><br></pre></td></tr></table></figure>]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>blog</tag>
       </tags>
   </entry>
   <entry>
@@ -469,112 +135,51 @@ st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time`
       </tags>
   </entry>
   <entry>
-    <title>kolla镜像构建</title>
-    <url>/2022/01/21/%E6%9E%84%E5%BB%BAkolla-images/</url>
-    <content><![CDATA[<!-- TOC -->
+    <title>ginkgo 学习笔记</title>
+    <url>/2024/03/22/ginkgo%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/</url>
+    <content><![CDATA[<h1 id="ginkgo-学习笔记"><a href="#ginkgo-学习笔记" class="headerlink" title="ginkgo 学习笔记"></a>ginkgo 学习笔记</h1><h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p>(kubebuilder如何写测试用例)<a href="https://book.kubebuilder.io/cronjob-tutorial/writing-tests">https://book.kubebuilder.io/cronjob-tutorial/writing-tests</a><br>(ginkgo和gomega学习笔记)<a href="https://blog.gmem.cc/ginkgo-study-note">https://blog.gmem.cc/ginkgo-study-note</a></p>
+<h2 id="常用测试方法"><a href="#常用测试方法" class="headerlink" title="常用测试方法"></a>常用测试方法</h2><h3 id="TDD-测试驱动开发"><a href="#TDD-测试驱动开发" class="headerlink" title="TDD 测试驱动开发"></a>TDD 测试驱动开发</h3><p>执行test → 失败 → coding → 执行test → 成功</p>
+<h3 id="BDD-行为驱动开发"><a href="#BDD-行为驱动开发" class="headerlink" title="BDD 行为驱动开发"></a>BDD 行为驱动开发</h3><p>TDD 侧重点偏向开发，通过测试用例来规范约束开发者编写出质量更高、bug更少的代码。而BDD更加侧重设计，其要求在设计测试用例时对系统进行定义，倡导使用通用的语言将系统的行为描述出来，将系统设计和测试用例结合起来，以此为驱动进行开发工作。BDD 衍生于 TDD，主要区别就是在于测试的描述上。BDD 使用一种更通俗易懂的文字来描述测试用例，更关注需求的功能，而不是实际结果。BDD 赋予的像阅读句子一样阅读测试的能力带来对测试认知上的转变，有助于我们去考虑如何更好写测试。</p>
+<p><strong>一句话理解 Ginkgo是测试框架  gomega 是Ginkgo首选断言库。</strong></p>
+<h2 id="Ginkgo"><a href="#Ginkgo" class="headerlink" title="Ginkgo"></a>Ginkgo</h2><h3 id="描述功能"><a href="#描述功能" class="headerlink" title="描述功能"></a>描述功能</h3><p>Describe来定义测试套件，Context来分组测试，并且在每个It块里，我们编写一个实际的测试，表达了当满足某个条件（“when …”）应该发生什么（“should …”）。</p>
+<p>当我们使用 “Describe” 时，我们实际上在说，”以下是我将要描述的一系列测试场景和测试用例”</p>
+<p>常用的关键字有</p>
+<p><code>It</code> 是测试例的基本单位，即It包含的代码就算一个测试用例<br><code>Context</code> 和Describe的功能都是将一个或多个测试例归类<br><code>BeforeEach</code> 是每个测试例执行前执行该段代码<br><code>AfterEach</code> 是每个测试例执行后执行该段代码<br><code>JustBeforeEach</code> 是在BeforeEach执行之后，测试例执行之前执行<br><code>BeforeSuite</code> 是在该测试集执行前执行，即该文件夹内的测试例执行之前<br><code>AfterSuite</code> 是在该测试集执行后执行，即该文件夹内的测试例执行完后<br><code>By</code> 是打印信息，内容只能是字符串，只会在测试例失败后打印，一般用于调试和定位问题<br><code>Fail</code> 是标志该测试例运行结果为失败，并打印里面的信息<br>还有一个 <code>Specify</code> 和 <code>It</code> 功能完全一样， <code>It</code> 属于其简写</p>
+<h2 id="gomega"><a href="#gomega" class="headerlink" title="gomega"></a>gomega</h2><p><code>Eventually</code> 用于你期望某个条件最终将为真，但是可能需要一些时间去达到。例如，如果你正在等待一个异步操作的结果，那么你可以使用Eventually来持续检查直到该条件满足或者超过了一个超时时限。它对处理可能有延迟的操作或者某些可能需要多次尝试才能成功的操作非常有用。(阻塞并轮询，直到能通过断言)<br><code>Consistently</code> 用于确保某个条件在给定的一段时间内始终为真。它会在一段时间内多次检查该条件是否满足，如果有任何一个检查失败，那么断言就会失败。它通常用于确保系统的一个状态不会因为异步事件或者其他原因而改变。（检查断言是否在一定时间段内总是通过）</p>
+<p>暂时用到这两个 后面慢慢积累</p>
+<h2 id="使用方式"><a href="#使用方式" class="headerlink" title="使用方式"></a>使用方式</h2><p> <code>ginkgo -r -v</code></p>
+<p>-r: 递归查找test文件<br>-v: 输出详细信息</p>
+<h2 id="开发流程"><a href="#开发流程" class="headerlink" title="开发流程"></a>开发流程</h2><p>kubebuilder 会自动生成好 suite_test.go测试套件<br>       1. 将 envtest 集群配置为从 CRD 目录 Kubebuilder 脚手架中读取 CRD。<br>       2. 使用 envtest 创建 k8s 控制层的测试环境 （api-server, etcd, kubectl）<br>       3. 默认是不会添加自定义的controller到测试集群需要手动添加下（需要开发）</p>
+<p>以自定义controller为例</p>
+<figure class="highlight golang"><table><tr><td class="code"><pre><span class="line"><span class="keyword">var</span> _ = BeforeSuite(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line"> 	ctx, cancel = context.WithCancel(context.TODO()) <span class="comment">// 主要注意添加context</span></span><br><span class="line">    ...</span><br><span class="line">	k8sClient, err = client.New(cfg, client.Options&#123;Scheme: scheme.Scheme&#125;)</span><br><span class="line">	Expect(err).NotTo(HaveOccurred())</span><br><span class="line">	Expect(k8sClient).NotTo(BeNil())</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Create a new manager to run the controller</span></span><br><span class="line">	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options&#123;</span><br><span class="line">		Scheme: scheme.Scheme,</span><br><span class="line">	&#125;)</span><br><span class="line">	Expect(err).ToNot(HaveOccurred())</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Create a new test of the controller</span></span><br><span class="line">	err = (&amp;TestReconciler&#123;</span><br><span class="line">		Client: k8sManager.GetClient(),</span><br><span class="line">		Scheme: k8sManager.GetScheme(),</span><br><span class="line">	&#125;).SetupWithManager(k8sManager)</span><br><span class="line">	Expect(err).ToNot(HaveOccurred())</span><br><span class="line"></span><br><span class="line">	<span class="comment">// Start the manager</span></span><br><span class="line">	<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		<span class="keyword">defer</span> GinkgoRecover()</span><br><span class="line">		err = k8sManager.Start(ctx) <span class="comment">// The manager will run in the background</span></span><br><span class="line">		Expect(err).ToNot(HaveOccurred(), <span class="string">&quot;failed to run manager&quot;</span>)</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> _ = AfterSuite(<span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">	cancel() <span class="comment">// 测试完成后 清理controller</span></span><br><span class="line">	By(<span class="string">&quot;tearing down the test environment&quot;</span>)</span><br><span class="line">	err := testEnv.Stop()</span><br><span class="line">	Expect(err).NotTo(HaveOccurred())</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
 
-<ul>
-<li><a href="#kolla-%E7%AE%80%E4%BB%8B">kolla 简介</a><ul>
-<li><a href="#kolla%E6%98%AF%E6%80%8E%E4%B9%88%E5%AE%9E%E7%8E%B0%E7%94%9F%E4%BA%A7%E7%BA%A7%E5%88%AB%E7%9A%84%E9%83%A8%E7%BD%B2%E5%B7%A5%E5%85%B7">kolla是怎么实现生产级别的部署工具？</a></li>
-</ul>
-</li>
-<li><a href="#kolla-build-images">kolla build images</a><ul>
-<li><a href="#kolla%E9%95%9C%E5%83%8F%E5%88%92%E5%88%86">kolla镜像划分</a></li>
-<li><a href="#kolla%E9%95%9C%E5%83%8F%E5%88%86%E5%B1%82">kolla镜像分层</a></li>
-<li><a href="#%E9%95%9C%E5%83%8F%E5%8A%9F%E8%83%BD%E5%88%92%E5%88%86">镜像功能划分</a></li>
-<li><a href="#kolla%E6%9E%84%E5%BB%BA%E9%95%9C%E5%83%8F">kolla构建镜像</a><ul>
-<li><a href="#%E5%87%86%E5%A4%87%E7%8E%AF%E5%A2%83">准备环境</a></li>
-<li><a href="#kolla-buildconf%E9%85%8D%E7%BD%AE">kolla-build.conf配置</a></li>
-<li><a href="#%E6%9E%84%E5%BB%BAkolla%E5%9F%BA%E7%A1%80%E9%95%9C%E5%83%8Fbase">构建kolla基础镜像base</a><ul>
-<li><a href="#%E4%BF%AE%E6%94%B9base%E9%95%9C%E5%83%8Fdebian-apt%E6%BA%90-pip%E6%BA%90">修改base镜像debian apt源 pip源</a></li>
-</ul>
-</li>
-<li><a href="#%E6%9E%84%E5%BB%BAkolla%E9%95%9C%E5%83%8F">构建kolla镜像</a><ul>
-<li><a href="#kolla-build-%E5%B8%B8%E7%94%A8%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E">kolla-build 常用参数说明</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#%E6%8C%87%E5%AE%9Anova%E6%BA%90%E7%A0%81%E6%9E%84%E5%BB%BA%E9%95%9C%E5%83%8F">指定Nova源码构建镜像</a></li>
-</ul>
-</li>
-<li><a href="#%E5%8F%82%E8%80%83">参考</a></li>
-</ul>
-<!-- /TOC -->
-
-<h1 id="kolla-简介"><a href="#kolla-简介" class="headerlink" title="kolla 简介"></a>kolla 简介</h1><blockquote>
-<p>Kolla’s mission is to provide production-ready containers and deployment tools for operating OpenStack clouds.</p>
+<h2 id="如何写测试用例（需要开发）"><a href="#如何写测试用例（需要开发）" class="headerlink" title="如何写测试用例（需要开发）"></a>如何写测试用例（需要开发）</h2><figure class="highlight golang"><table><tr><td class="code"><pre><span class="line">Describe(<span class="string">&quot;InstanceController&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;  <span class="comment">// 声明为虚拟机controller的测试用例</span></span><br><span class="line">    Context(<span class="string">&quot;When instance create&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123; <span class="comment">//细分测试场景 声明为虚拟机创建后的测试用例</span></span><br><span class="line">        It(<span class="string">&quot;测试用例&quot;</span>, <span class="function"><span class="keyword">func</span><span class="params">()</span></span>&#123; <span class="comment">// 测试用例 虚拟机关机，开机等等</span></span><br><span class="line">            ...</span><br><span class="line">        &#125;)</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+]]></content>
+      <categories>
+        <category>Golang</category>
+      </categories>
+      <tags>
+        <tag>Go</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>kubevirt make cluster-sync pull 镜像timeout</title>
+    <url>/2024/02/21/kubevirt:%20make%20cluster-sync%20pull%20%E9%95%9C%E5%83%8Ftimeout/</url>
+    <content><![CDATA[<blockquote>
+<p>尝试在本地编译 kubevirt 源码，在执行 make cluster-sync 发生报错。<br>环境信息:<br>root@kubevirt:~&#x2F;kubevirt# lsb_release -a<br>Distributor ID: Ubuntu<br>Description:    Ubuntu 22.04 LTS<br>Release:        22.04<br>Codename:       jammy</p>
 </blockquote>
-<p><strong>Kolla 的使命是为运营 OpenStack 云提供生产就绪的容器和部署工具。</strong></p>
-<h2 id="kolla是怎么实现生产级别的部署工具？"><a href="#kolla是怎么实现生产级别的部署工具？" class="headerlink" title="kolla是怎么实现生产级别的部署工具？"></a>kolla是怎么实现生产级别的部署工具？</h2><p>kolla使用了两种主要的技术：<strong>ansible自动化工具和docker容器。</strong> 通常说的kolla指的的是kolla，kolla-ansible两个项目。kolla 主要负责OpenStack的docker镜像的构建，kolla-ansible 通过ansible部署kolla的镜像的playbook。</p>
-<blockquote>
-<p>实际上，根据 kolla还有个<a href="https://docs.openstack.org/kayobe/latest/">Kayobe</a>项目， 我理解它是用于管理OpenStack集群工具，目前用的人不多。</p>
-<p>还有一个项目 Kolla-kubernetes，在kubernetes上部署OpenStack。但是和另一个项目 openstack-helm 重合较多，<a href="http://lists.openstack.org/pipermail/openstack-dev/2018-March/128822.html">让官方叫停了</a>。</p>
-</blockquote>
-<h1 id="kolla-build-images"><a href="#kolla-build-images" class="headerlink" title="kolla build images"></a>kolla build images</h1><p>kolla-build是一个自动化构建OpenStack服务所需要的镜像工具。仓库中包含大量的Dockerfile，供构建docker镜像的使用。</p>
-<p>实际上部署通过kolla-ansible部署OpenStack，是不需要kolla-build的。kolla-ansible在部署时会检测镜像，如果镜像没有准备好就会从docker远程仓库Pull对应的镜像，然后在执行deploy。</p>
-<p>一般来说生产环境搭建环境，因为网络原因部署的速度是比较慢的。最好使用本地镜像仓库，这就需要我们自己构建镜像，下面详细介绍kolla本地构建镜像。</p>
-<h2 id="kolla镜像划分"><a href="#kolla镜像划分" class="headerlink" title="kolla镜像划分"></a>kolla镜像划分</h2><p><a class="simple-lightbox" href="https://pic3.zhimg.com/80/v2-016b2ae2da49a3400821ac5cbc182d1a_1440w.jpg"><img   src="/images/loading.svg" data-src="https://pic3.zhimg.com/80/v2-016b2ae2da49a3400821ac5cbc182d1a_1440w.jpg"  alt="image" lazyload></a></p>
-<p>kolla镜像目前已达到个2345个，实际上不是完全独立的2345个服务。而是针对不同的场景分别构建，达到全面覆盖的结果。同时支持binary和source两种构建方案，而且支持不同的操作系统CentOS，Ubuntu，Debian作为基础镜像，可以满足用户不同的需求。同时也支持在不修改源代码情况下，对镜像进行定制。</p>
-<h2 id="kolla镜像分层"><a href="#kolla镜像分层" class="headerlink" title="kolla镜像分层"></a>kolla镜像分层</h2><p>OpenStack中有很多服务隶属同一个项目。例如，nova-api， nova-conductor，nova-scheduler，nova-compute等等都输于Nova项目，所以，kolla先构建一个通用的nova-base镜像，然后在此基础上分别构建不同的服务。</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker/</span><br><span class="line">├── base</span><br><span class="line">│   └── Dockerfile.j2</span><br><span class="line">├── horizon</span><br><span class="line">│   └── Dockerfile.j2</span><br><span class="line">├── mariadb</span><br><span class="line">│   └── Dockerfile.j2</span><br><span class="line">├── nova</span><br><span class="line">│   ├── nova-api</span><br><span class="line">│   │   └── Dockerfile.j2</span><br><span class="line">│   ├── nova-base</span><br><span class="line">│   │   └── Dockerfile.j2</span><br><span class="line">│   └── nova-compute</span><br><span class="line">│       └── Dockerfile.j2</span><br><span class="line">└── openstack-base</span><br><span class="line">    └── Dockerfile.j2</span><br></pre></td></tr></table></figure>
-
-<h2 id="镜像功能划分"><a href="#镜像功能划分" class="headerlink" title="镜像功能划分"></a>镜像功能划分</h2><p>kolla项目不仅仅吧OpenStack服务集成了，而且把基础服务也包含在内。如 mariadb，rabbitmq，memcache等等。</p>
-<h2 id="kolla构建镜像"><a href="#kolla构建镜像" class="headerlink" title="kolla构建镜像"></a>kolla构建镜像</h2><p>kolla已经涵盖了2000多个镜像，基本上涵盖了大部分软件。如果说这里没有我们需要的应用版本，也可以通过编写Dockerfile来解决。下面我分为三步快速的构建kolla镜像。</p>
-<ol>
-<li>准备环境</li>
-<li>修改kolla-build.conf配置</li>
-<li>构建kolla镜像</li>
-</ol>
-<h3 id="准备环境"><a href="#准备环境" class="headerlink" title="准备环境"></a>准备环境</h3><p>操作系统： Ubuntu Server18.04<br>规格： 4U4G</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="language-bash">安装docker</span></span><br><span class="line">apt-get remove docker docker-engine docker-ce docker.io</span><br><span class="line">apt-get install apt-transport-https ca-certificates curl software-properties-common -y</span><br><span class="line">curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -</span><br><span class="line">add-apt-repository &quot;deb [arch=amd64] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu $(lsb_release -cs) stable&quot;</span><br><span class="line">apt-get update -y</span><br><span class="line">apt-get install docker-ce -y</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">安装pip3</span></span><br><span class="line">apt install python3-pip python3-venv</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">使用Python虚拟环境</span></span><br><span class="line">python3 -m venv .virtualenvs/kolla-build</span><br><span class="line">source .virtualenvs/kolla-build/bin/activeate</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">安装kolla-build命令</span></span><br><span class="line">pip3 install kolla</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">安装tox</span></span><br><span class="line">pip3 install tox</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash"><span class="built_in">clone</span> kolla代码</span></span><br><span class="line">git clone https://github.com/openstack/kolla.git -b stable/victoria</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">生成 etc/kolla/kolla-build.conf</span></span><br><span class="line">tox -e genconfig -i https://pypi.tuna.tsinghua.edu.cn/simple</span><br></pre></td></tr></table></figure>
-
-<h3 id="kolla-build-conf配置"><a href="#kolla-build-conf配置" class="headerlink" title="kolla-build.conf配置"></a>kolla-build.conf配置</h3><p> <code>vim etc/kolla/kolla-build.conf</code></p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">[DEFAULT]</span><br><span class="line">base = debian # 基础镜像 可选centos，debian，ubuntu。默认centos</span><br><span class="line">base_arch = x86_64 # 基础镜像架构x86_64</span><br><span class="line">skip_existing = true # 跳过已构建的镜像</span><br><span class="line">registry = leifeng.harbor.com # 指定镜像仓库</span><br><span class="line">install_type = source # 安装OpenStack类型，可选source，binary。 推荐source 源码安装</span><br><span class="line">openstack_branch = victoria # openstack 版本</span><br></pre></td></tr></table></figure>
-
-<h3 id="构建kolla基础镜像base"><a href="#构建kolla基础镜像base" class="headerlink" title="构建kolla基础镜像base"></a>构建kolla基础镜像base</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">kolla-build --config-file etc/kolla/kolla-build.conf ^base </span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>Note: ^base前面的^符合不能省略，这里使用了正则表示式，匹配句首为base的image。如果缺少该参数会构建openstack-base，nova-base等等包含base字段的image。</p>
-</blockquote>
-<h4 id="修改base镜像debian-apt源-pip源"><a href="#修改base镜像debian-apt源-pip源" class="headerlink" title="修改base镜像debian apt源 pip源"></a>修改base镜像debian apt源 pip源</h4><p>默认base镜像使用的是国外的apt源，国内下载软件速度会很慢。而且构建失败的镜像较多。</p>
-<p>更改debian apt源可以直接修改base对应的 docker&#x2F;base&#x2F;Dockerfile.j2源码。</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">...</span><br><span class="line">&#123;% elif base_distro == &#x27;debian&#x27; %&#125;</span><br><span class="line">    &#123;% set base_apt_keys = [</span><br><span class="line">      &#x27;46095ACC8548582C1A2699A9D27D666CD88E42B4&#x27;，</span><br><span class="line">      &#x27;F1656F24C74CD1D8&#x27;，</span><br><span class="line">      &#x27;F77F1EDA57EBB1CC&#x27;，</span><br><span class="line">      &#x27;F6609E60DC62814E&#x27;，</span><br><span class="line">    ] %&#125;</span><br><span class="line">    &#123;% set remote_apt_keys = [</span><br><span class="line">      &#x27;https://download.docker.com/linux/debian/gpg&#x27;，</span><br><span class="line">      &#x27;https://packages.grafana.com/gpg.key&#x27;，</span><br><span class="line">      &#x27;http://buster-ussuri.debian.net/debian/dists/pubkey.gpg&#x27;，</span><br><span class="line">      &#x27;https://packages.treasuredata.com/GPG-KEY-td-agent&#x27;，</span><br><span class="line">      &#x27;https://repos.influxdata.com/influxdb.key&#x27;，</span><br><span class="line">      &#x27;https://obs.linaro.org/repos/home:/marcin.juszkiewicz/debian-buster/Release.key&#x27;，</span><br><span class="line">    ] %&#125;</span><br><span class="line">    &#123;% set base_apt_packages = base_apt_packages +</span><br><span class="line">      [&#x27;sudo&#x27;，]</span><br><span class="line">    %&#125;</span><br><span class="line">&#123;% endif %&#125;</span><br></pre></td></tr></table></figure>
-
-<p>和修改源码相比我更喜欢等base镜像构建完成，直接在base镜像上修改apt源和pip源。</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># sources.list</span></span><br><span class="line">vim sources.list</span><br><span class="line">deb http://mirrors.aliyun.com/debian/ buster main non-free contrib</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian/ buster main non-free contrib</span><br><span class="line">deb http://mirrors.aliyun.com/debian-security buster/updates main</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian-security buster/updates main</span><br><span class="line">deb http://mirrors.aliyun.com/debian/ buster-updates main non-free contrib</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian/ buster-updates main non-free contrib</span><br><span class="line">deb http://mirrors.aliyun.com/debian/ buster-backports main non-free contrib</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian/ buster-backports main non-free contrib</span><br><span class="line"></span><br><span class="line"><span class="comment"># pip.conf</span></span><br><span class="line">vim pip.conf</span><br><span class="line">[global]</span><br><span class="line"><span class="built_in">timeout</span> = 6000</span><br><span class="line">index-url = http://mirrors.aliyun.com/pypi/simple/</span><br><span class="line">trusted-host = mirrors.aliyun.com</span><br><span class="line"></span><br><span class="line"><span class="comment"># Dockerfile</span></span><br><span class="line">vim Dockerfile</span><br><span class="line">FROM leifeng.harbor.com/kolla/debian-source-base:11.2.1</span><br><span class="line">COPY pip.conf /etc/pip.conf</span><br><span class="line">COPY sources.list /etc/apt/sources.list</span><br><span class="line">RUN pip install --upgrade pip setuptools</span><br><span class="line"></span><br><span class="line"><span class="comment"># build 新的base镜像</span></span><br><span class="line">docker build -t leifeng.harbor.com/kolla/debian-source-base:11.2.1-leifeng .</span><br></pre></td></tr></table></figure>
-
-<h3 id="构建kolla镜像"><a href="#构建kolla镜像" class="headerlink" title="构建kolla镜像"></a>构建kolla镜像</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">kolla-build --config-file etc/kolla/kolla-build.conf --tag 11.2.1-leifeng -p default</span><br></pre></td></tr></table></figure>
-
-<h4 id="kolla-build-常用参数说明"><a href="#kolla-build-常用参数说明" class="headerlink" title="kolla-build 常用参数说明"></a>kolla-build 常用参数说明</h4><ul>
-<li>–config-file 指定kolla-build.conf路径</li>
-<li>–tag 指定镜像tag</li>
-<li>–skip-existing 跳过已构建好的镜像</li>
-<li>–push 镜像构建完成后push到仓库中</li>
-<li>–registry 指定镜像仓库</li>
-<li>-p –profile 指定需要构建的一组镜像列表。默认存在infra，main，aux，default。可以通过kolla-build -p default –list-images 查看镜像列表<br>可以在配置文件中修改:</li>
-</ul>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">[profiles]</span><br><span class="line"></span><br><span class="line">#</span><br><span class="line"># From kolla</span><br><span class="line">#</span><br><span class="line"></span><br><span class="line"># Infra images (list value)</span><br><span class="line">#infra = certmonger，cron，elasticsearch，etcd，fluentd，haproxy，hacluster，keepalived，kibana，kolla-toolbox，logstash，mariadb，memcached，openvswitch，ptp，qdrouterd，rabbitmq，redis，rsyslog，skydive，storm，tgtd</span><br><span class="line"></span><br><span class="line"># Main images (list value)</span><br><span class="line">#main = ceilometer，cinder，glance，heat，horizon，iscsi，keystone，neutron，nova-，placement，swift</span><br><span class="line"></span><br><span class="line"># Aux Images (list value)</span><br><span class="line">#aux = aodh，blazar，cloudkitty，designate，ec2-api，freezer，gnocchi，influxdb，ironic，kafka，karbor，kuryr，magnum，manila，masakari，mistral，monasca，murano，novajoin，octavia，panko，qinling，rally，redis，sahara，searchlight，senlin，solum，tacker，telegraf，trove，vitrage，zaqar，zookeeper，zun</span><br><span class="line"></span><br><span class="line"># Default images (list value)</span><br><span class="line">#default = chrony，cron，kolla-toolbox，fluentd，glance，haproxy，heat，horizon，keepalived，keystone，mariadb，memcached，neutron，nova-，placement，openvswitch，rabbitmq</span><br></pre></td></tr></table></figure>
-
-<blockquote>
-<p>NOTE: 第一次构建所有镜像，时间较长。如果出现异常中断的，可以重复执行。</p>
-</blockquote>
-<h2 id="指定Nova源码构建镜像"><a href="#指定Nova源码构建镜像" class="headerlink" title="指定Nova源码构建镜像"></a>指定Nova源码构建镜像</h2><p>构建完成后Nova的源代码来自 <code>https://tarballs.opendev.org/openstack/nova/nova-stable-victoria.tar.gz</code> 。大部分情况下，我们只需要构建有代码提交的仓库，其他的镜像不需要重新构建。根据<a href="#kolla%E9%95%9C%E5%83%8F%E5%88%86%E5%B1%82">kolla镜像分层</a>的原理我们只需要从nova-base开始构建就可以了。</p>
-<p>基于刚才构建好的debian-source-nova-base:11.2.1镜像，重新构建Nova镜像, 文章中我使用为nova victoria版本源代码。你可以替换为公司的源代码。kolla支持git，local，url三种方式安装Nova源代码，这里以local为例。</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> /home/github/</span><br><span class="line">git <span class="built_in">clone</span> https://github.com/openstack/nova.git -b stable/victoria</span><br><span class="line"></span><br><span class="line"><span class="comment">## 修改 kolla-build.conf配置</span></span><br><span class="line"></span><br><span class="line">[nova-base]</span><br><span class="line"><span class="built_in">local</span> = /home/github/nova <span class="comment"># 添加Nova源码路径</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"><span class="comment"># From kolla</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Source location type (string value)</span></span><br><span class="line"><span class="comment"># Possible values:</span></span><br><span class="line"><span class="comment"># local - &lt;No description provided&gt;</span></span><br><span class="line"><span class="comment"># git - &lt;No description provided&gt;</span></span><br><span class="line"><span class="comment"># url - &lt;No description provided&gt;</span></span><br><span class="line"><span class="comment">#type = url</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># The location for source install (string value)</span></span><br><span class="line"><span class="comment">#location = $tarballs_base/openstack/nova/nova-stable-victoria.tar.gz</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Git reference to pull, commit sha, tag or branch name (string value)</span></span><br><span class="line"><span class="comment">#reference = &lt;None&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 仅构建Nova镜像</span></span><br><span class="line">kolla-build --config-file etc/kolla/kolla-build.conf ^nova</span><br></pre></td></tr></table></figure>
-
-<h1 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h1><ol>
-<li><a href="https://zhuanlan.zhihu.com/p/104357030">管理2000+Docker镜像，Kolla是如何做到的</a></li>
-<li><a href="https://blog.inkubate.io/install-and-configure-openstack-pike-with-kolla-as-a-standalone/">Install and configure OpenStack Pike with Kolla as a standalone</a> </li>
-<li><a href="https://docs.openstack.org/kolla/latest/admin/index.html#building-container-images">OpenStack Kolla build images</a></li>
-</ol>
+<h2 id="操作记录"><a href="#操作记录" class="headerlink" title="操作记录"></a>操作记录</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># pull kubevirt</span></span><br><span class="line">git <span class="built_in">clone</span> git@github.com:kubevirt/kubevirt.git</span><br><span class="line"><span class="comment"># 切换tag</span></span><br><span class="line">git checkout v1.1.1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用kind创建k8s</span></span><br><span class="line"><span class="built_in">export</span> KUBEVIRT_PROVIDER=kind-1.27</span><br><span class="line">make cluster-up</span><br><span class="line"></span><br><span class="line"><span class="comment"># 编译源码并同步到k8s</span></span><br><span class="line">make cluster-sync</span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">INFO: Repository fedora_with_test_tooling instantiated at:</span><br><span class="line">  /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">Repository rule container_pull defined at:</span><br><span class="line">  /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl:243:33: <span class="keyword">in</span> &lt;toplevel&gt;</span><br><span class="line">ERROR: An error occurred during the fetch of repository <span class="string">&#x27;fedora_with_test_tooling&#x27;</span>:</span><br><span class="line">   Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/WORKSPACE:308:15: fetching container_pull rule //external:fedora_with_test_tooling: Traceback (most recent call last):</span><br><span class="line">        File <span class="string">&quot;/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/io_bazel_rules_docker/container/pull.bzl&quot;</span>, line 189, column 13, <span class="keyword">in</span> _impl</span><br><span class="line">                fail(<span class="string">&quot;Pull command failed: %s (%s)&quot;</span> % (result.stderr, <span class="string">&quot; &quot;</span>.<span class="built_in">join</span>([str(a) <span class="keyword">for</span> a <span class="keyword">in</span> args])))</span><br><span class="line">Error <span class="keyword">in</span> fail: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91</span><br><span class="line">c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0eb</span><br><span class="line">fd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: /root/go/src/kubevirt.io/kubevirt/containerimages/BUILD.bazel:86:16: //containerimages:fedora-with-test-tooling depends on @fedora_with_test_tooling//image:image <span class="keyword">in</span> repository @fedora_with_test_tooling wh</span><br><span class="line">ich failed to fetch. no such package <span class="string">&#x27;@fedora_with_test_tooling//image&#x27;</span>: Pull <span class="built_in">command</span> failed: Timed out (/root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downlo</span><br><span class="line">aded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image -os linux -os-version  -os-features  -architecture amd64 -variant  -features  -name quay.io</span><br><span class="line">/kubevirtci/fedora-with-test-tooling@sha256:23dfbf35feb0ebfd2bcf85fe94c94f5ad50bca8762001ee0230f8381f79f52ef)</span><br><span class="line">ERROR: Analysis of target <span class="string">&#x27;//:push-fedora-with-test-tooling-container-disk&#x27;</span> failed; build aborted:</span><br><span class="line">INFO: Elapsed time: 600.464s</span><br><span class="line">INFO: 0 processes.</span><br></pre></td></tr></table></figure>
+<h2 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h2><p>报错信息是可以看到是 pull command failed: timed out. Elapsed time: 600.464s<br>下载镜像超时有两种可能<br>1.无法访问仓库导致的超时(https握手失败会立即报错不会等待600s这么久，排除);<br>2.因为镜像太大导致的下载镜像超时；</p>
+<h3 id="因为镜像太大导致的下载镜像超时"><a href="#因为镜像太大导致的下载镜像超时" class="headerlink" title="因为镜像太大导致的下载镜像超时"></a>因为镜像太大导致的下载镜像超时</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@kubevirt:~/kubevirt<span class="comment"># ps -ef|grep download</span></span><br><span class="line">root     3162711 3146984  0 09:17 ?        00:00:00 /root/.cache/bazel/_bazel_root/install/7e78030801a38f836b1891b02e25eaaa/process-wrapper --<span class="built_in">timeout</span>=800 --kill_delay=15 /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_puller_linux_amd64/file/downloaded -directory /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/go_image_base/image -os linux -os-version  -os-features -architecture amd64 -variant  -features  -name gcr.io/distroless/base@sha256:6c871aa3c9019984dfd7f520635bd658d740ad20c6268a82faa433f69dfc9a0b</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入到bazel server 查看镜像是否下载</span></span><br><span class="line">root@kubevirt:~/kubevirt<span class="comment"># docker exec -it -uroot kubevirt-bazel-server bash</span></span><br><span class="line"></span><br><span class="line">[root@kubevirt kubevirt]<span class="comment"># ls -lh /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/</span></span><br><span class="line">total 671M</span><br><span class="line">-rwxr-xr-x 1 root root   64 Feb 20 01:20 000.sha256</span><br><span class="line">-rw-r--r-- 1 root root 601M Feb 20 01:30 000.tar.gz</span><br><span class="line">-rwxr-xr-x 1 root root  492 Feb 20 01:30 BUILD</span><br><span class="line">-rwxr-xr-x 1 root root 1.2K Feb 20 01:20 config.json</span><br><span class="line">-rwxr-xr-x 1 root root   71 Feb 20 01:20 digest</span><br><span class="line">lrwxrwxrwx 1 root root  110 Feb 20 01:30 image.digest -&gt; /root/.cache/bazel/_bazel_root/6f347497f91c9a385dcd9294645b76e0/external/fedora_with_test_tooling/image/digest</span><br><span class="line">-rwxr-xr-x 1 root root  530 Feb 20 01:20 manifest.json</span><br><span class="line">[root@kubevirt kubevirt]<span class="comment">#</span></span><br></pre></td></tr></table></figure>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>可以看到镜像下载了一部分与我们分析情况一致，镜像太大或着网速太慢导致下载超时。查询rules_docker文档，为了防止其他镜像下载超时这里更改 PULLER_TIMEOUT 环境变量。<br>修改 <strong>.bazelrc</strong> 文件 增加 <strong>–action_env&#x3D;PULLER_TIMEOUT&#x3D;10000</strong><br><code>build:x86_64 --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo --compilation_mode=dbg --action_env=PULLER_TIMEOUT=10000</code></p>
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://github.com/bazelbuild/rules_docker/blob/master/docs/container.md#container_pull">rules_docker&#x2F;docs&#x2F;container.md at master · bazelbuild&#x2F;rules_docker</a></p>
 ]]></content>
       <categories>
         <category>云计算</category>
       </categories>
       <tags>
-        <tag>OpenStack</tag>
-        <tag>Kolla</tag>
+        <tag>kubevirt</tag>
+        <tag>kubernetes</tag>
       </tags>
   </entry>
   <entry>
@@ -720,6 +325,401 @@ st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time`
       </categories>
       <tags>
         <tag>Vim</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>搭建Miniflux</title>
+    <url>/2022/07/21/%E6%90%AD%E5%BB%BAMiniflux/</url>
+    <content><![CDATA[<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://miniflux.app/docs/installation.html#docker">Installation Instructions</a><br><a href="https://certbot.eff.org/instructions?ws=nginx&os=ubuntufocal">Certbot Instructions | Certbot</a></p>
+<blockquote>
+<p>之前使用 fresh RSS自建源，发现<a href="https://www.ixiqin.com/">白宦成 - 独立开发者记录</a>的rss源。无法订阅后台报xml解析的错误。网上搜索无果后，就有了换平台的想法。偶然看到这篇文章<a href="https://lukesingham.com/rss-feed-reader/">The Best Self-Hosted RSS Feed Readers</a>，对目前自建rss托管平台进行对比。最终miniflux以8.5的高分胜出。我最喜欢的界面简洁，以下是我的安装记录。</p>
+</blockquote>
+<p>我已有的一台vps,域名都已经注册好了。使用场景是 通过nginx反向代理到miniflux，而且必须使用https，毕竟自己的平台安全还是要有的。</p>
+<p>以下是我的搭建步骤：</p>
+<h2 id="安装miniflux"><a href="#安装miniflux" class="headerlink" title="安装miniflux"></a>安装miniflux</h2><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">mkdir miniflux &amp;&amp; cd miniflux</span><br></pre></td></tr></table></figure>
+
+<p><code>vim docker-compose.yml</code></p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">version: &#x27;3.4&#x27;</span><br><span class="line">services:</span><br><span class="line">  miniflux:</span><br><span class="line">    image: miniflux/miniflux:latest</span><br><span class="line">    ports:</span><br><span class="line">      - &quot;8080:8080&quot; # 端口号</span><br><span class="line">    depends_on:</span><br><span class="line">      - db</span><br><span class="line">    environment:</span><br><span class="line">      - DATABASE_URL=postgres://miniflux:secret@db/miniflux?sslmode=disable</span><br><span class="line">      - RUN_MIGRATIONS=1</span><br><span class="line">      - CREATE_ADMIN=1</span><br><span class="line">      - ADMIN_USERNAME=xxxxx # 管理员用户名</span><br><span class="line">      - ADMIN_PASSWORD=xxxxx # 管理员密码</span><br><span class="line">    restart: unless-stopped</span><br><span class="line">  db:</span><br><span class="line">    image: postgres:latest</span><br><span class="line">    environment:</span><br><span class="line">      - POSTGRES_USER=miniflux</span><br><span class="line">      - POSTGRES_PASSWORD=secret</span><br><span class="line">    volumes:</span><br><span class="line">      - miniflux-db:/var/lib/postgresql/data</span><br><span class="line">    healthcheck:</span><br><span class="line">      test: [&quot;CMD&quot;, &quot;pg_isready&quot;, &quot;-U&quot;, &quot;miniflux&quot;]</span><br><span class="line">      interval: 10s</span><br><span class="line">      start_period: 30s</span><br><span class="line">volumes:</span><br><span class="line">  miniflux-db:</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line"># 首先启动db</span><br><span class="line">docker-compose up -d db</span><br><span class="line"></span><br><span class="line"># 然后启动miniflux</span><br><span class="line">docker-compose up miniflux</span><br><span class="line"></span><br><span class="line"># 运行数据迁移</span><br><span class="line">docker-compose exec miniflux /usr/bin/miniflux -migrate</span><br><span class="line"></span><br><span class="line"># 创建第一个用户</span><br><span class="line">docker-compose exec miniflux /usr/bin/miniflux -create-admin</span><br></pre></td></tr></table></figure>
+
+<h2 id="安装nginx"><a href="#安装nginx" class="headerlink" title="安装nginx"></a>安装nginx</h2><h3 id="创建证书"><a href="#创建证书" class="headerlink" title="创建证书"></a>创建证书</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">certbot --nginx</span><br></pre></td></tr></table></figure>
+
+<h3 id="配置nginx反向代理"><a href="#配置nginx反向代理" class="headerlink" title="配置nginx反向代理"></a>配置nginx反向代理</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">mkdir /home/ubuntu/nginx &amp;&amp; cd /home/ubunt/nginx</span><br><span class="line">mkdir -p conf/nginx/conf.d</span><br></pre></td></tr></table></figure>
+<p>创建文件 <code>vim conf/nginx/conf.d/miniflux.conf</code></p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">server &#123;</span><br><span class="line">    listen 80;</span><br><span class="line">    server_name &lt;domain&gt;; # 修改域名</span><br><span class="line">    server_tokens off;</span><br><span class="line"></span><br><span class="line">    location /.well-known/acme-challenge/ &#123;</span><br><span class="line">        root /var/www/certbot;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    location / &#123;</span><br><span class="line">        return 301 https://$host$request_uri;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">server &#123;</span><br><span class="line">    listen 443 ssl;</span><br><span class="line">    server_name  &lt;domain&gt;; # 修改域名</span><br><span class="line">    server_tokens off;</span><br><span class="line">    resolver 127.0.0.11;</span><br><span class="line">    set $upstream 127.0.0.1:8080;</span><br><span class="line"></span><br><span class="line">    ssl_certificate /etc/letsencrypt/live/fuscoyu.site/fullchain.pem;</span><br><span class="line">    ssl_certificate_key /etc/letsencrypt/live/fuscoyu.site/privkey.pem;</span><br><span class="line">    include /etc/letsencrypt/options-ssl-nginx.conf;</span><br><span class="line">    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;</span><br><span class="line"></span><br><span class="line">    location / &#123;</span><br><span class="line">        proxy_pass  http://$upstream;</span><br><span class="line">        proxy_set_header    Host                $http_host;</span><br><span class="line">        proxy_set_header    X-Real-IP           $remote_addr;</span><br><span class="line">        proxy_set_header    X-Forwarded-For     $proxy_add_x_forwarded_for;</span><br><span class="line">        proxy_set_header  X-Forwarded-Ssl     on;</span><br><span class="line">        proxy_set_header  X-Forwarded-Proto   $scheme;</span><br><span class="line">        proxy_set_header  X-Frame-Options     SAMEORIGIN;</span><br><span class="line"></span><br><span class="line">        client_max_body_size        100m;</span><br><span class="line">        client_body_buffer_size     128k;</span><br><span class="line"></span><br><span class="line">        proxy_buffer_size           4k;</span><br><span class="line">        proxy_buffers               4 32k;</span><br><span class="line">        proxy_busy_buffers_size     64k;</span><br><span class="line">        proxy_temp_file_write_size  64k;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="使用docker-compse启动nginx"><a href="#使用docker-compse启动nginx" class="headerlink" title="使用docker-compse启动nginx"></a>使用docker-compse启动nginx</h3><figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">version: &#x27;3&#x27;</span><br><span class="line"></span><br><span class="line">services:</span><br><span class="line">  nginx:</span><br><span class="line">    image: nginx:1.21.6</span><br><span class="line">    container_name: webserver</span><br><span class="line">    restart: unless-stopped</span><br><span class="line">    volumes:</span><br><span class="line">      - /home/ubuntu/nginx/conf/nginx:/etc/nginx</span><br><span class="line">      - /etc/letsencrypt:/etc/letsencrypt</span><br><span class="line">    network_mode: host # 使用主机网卡，不然nginx内部访问不到miniflux端口</span><br><span class="line">    ports:</span><br><span class="line">      - 80:80</span><br><span class="line">      - 443:443</span><br></pre></td></tr></table></figure>
+
+
+<h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>在浏览器地址栏中输入你的域名，输入配置文件中用户名密码。<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195518.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195518.png"  lazyload></a></p>
+<h2 id="新增源"><a href="#新增源" class="headerlink" title="新增源"></a>新增源</h2><p>如何找呢订阅源呢，推荐你上<a href="https://docs.rsshub.app/">介绍 | RSSHub</a> 。还可以Chrome浏览器上安装插件<a href="https://chrome.google.com/webstore/detail/rsshub-radar/kefjpfngnndepjbopdmoebkipbgkggaa">RSSHub Radar - Chrome 网上应用店</a> ，它可以提示你那些网站可以订阅RSS源 。</p>
+<p>点击复制<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200042.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200042.png"  lazyload></a></p>
+<p>点击 源-&gt;新增源  粘贴刚才复制的网址并点击查找源<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200321.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200321.png"  lazyload></a></p>
+<p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200607.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721200607.png"  lazyload></a></p>
+<h2 id="手机使用Reader访问"><a href="#手机使用Reader访问" class="headerlink" title="手机使用Reader访问"></a>手机使用Reader访问</h2><p>点击 设置-&gt;集成-&gt;启用Google Reader&#x2F;Fever，设置阅读器访问的用户名密码<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195446.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195446.png"  lazyload></a></p>
+<p>在手机上我使用Reader5，使用配置如下 我这里以Google reader为例<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195424.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195424.png"  lazyload></a></p>
+<p>输入你的域名，这里的用户名密码是上面集成中设置的。<br><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195336.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/20220721195336.png"  lazyload></a></p>
+<p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/IMG_2349.PNG"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/IMG_2349.PNG"  lazyload></a></p>
+<h1 id="结语"><a href="#结语" class="headerlink" title="结语"></a>结语</h1><p>以上就是我的搭建的miniflux的记录，一起折腾吧。这里推荐大家一些我常看的大佬的博客。<br><a href="https://www.ixiqin.com/">白宦成 - 独立开发者记录</a><br><a href="https://jdhao.github.io/">jdhao’s digital space</a><br><a href="https://someonegao.com/">某高老师的博客 - 人间观察</a><br><a href="https://coolshell.cn/">酷壳 – CoolShell.cn</a></p>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>RSS</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>二层网络</title>
+    <url>/2025/08/02/%E4%BA%8C%E5%B1%82%E7%BD%91%E7%BB%9C/</url>
+    <content><![CDATA[<h1 id="二层网络"><a href="#二层网络" class="headerlink" title="二层网络"></a>二层网络</h1><p>前段时间学习了二、三层网络基础。想用自己的话来总结下目前理解到东西，方便自己复习，如有不对请大家指出, 本篇是二层网络的总结。</p>
+<span id="more"></span>
+
+<h2 id="1-实验环境搭建"><a href="#1-实验环境搭建" class="headerlink" title="1. 实验环境搭建"></a>1. 实验环境搭建</h2><h3 id="1-1-网络拓扑设计"><a href="#1-1-网络拓扑设计" class="headerlink" title="1.1 网络拓扑设计"></a>1.1 网络拓扑设计</h3><p><strong>管理网络配置</strong>（用于SSH远程访问）：</p>
+<ul>
+<li>EIP: 192.168.18.172</li>
+<li>管理网: VPC 172.16.0.0&#x2F;16</li>
+<li>switch, vm1, vm2, vm3 的 eth0 网卡都连接到管理网<ul>
+<li>vm1: 172.16.0.2</li>
+<li>vm2: 172.16.0.3  </li>
+<li>vm3: 172.16.0.4</li>
+<li>switch: 172.16.0.5</li>
+</ul>
+</li>
+</ul>
+<p><strong>二层网络配置</strong>：</p>
+<ul>
+<li>创建网络 n1, n2, n3</li>
+<li>switch 连接 n1, n2, n3 的 eth1, eth2, eth3</li>
+<li>虚拟机二层网络配置：<ul>
+<li>vm1: n1, eth1, 10.0.0.11, MAC: 52:54:65:f1:c5:45</li>
+<li>vm2: n2, eth1, 10.0.0.12, MAC: 52:54:65:12:a7:d0</li>
+<li>vm3: n3, eth1, 10.0.0.13, MAC: 52:54:65:46:10:a1</li>
+</ul>
+</li>
+</ul>
+<h3 id="1-2-虚拟机配置"><a href="#1-2-虚拟机配置" class="headerlink" title="1.2 虚拟机配置"></a>1.2 虚拟机配置</h3><blockquote>
+<p>上述配置只是为了可以用SSH远程访问这些虚拟机，便于后续实验操作。</p>
+</blockquote>
+<h2 id="2-二层网络基础概念"><a href="#2-二层网络基础概念" class="headerlink" title="2. 二层网络基础概念"></a>2. 二层网络基础概念</h2><h3 id="2-1-二层转发原理"><a href="#2-1-二层转发原理" class="headerlink" title="2.1 二层转发原理"></a>2.1 二层转发原理</h3><p>二层网络的核心原理是：<strong>收到报文的目标MAC地址不是自己的MAC地址时，转发给同网络的其他端口</strong>。</p>
+<p>同一个网段通过二层进行通信，也就是使用MAC地址互相访问。但是每个VM并不知道其他VM的MAC地址，应用程序还是用IP进行通信。所以建立网络连接的第一步是解析MAC地址。</p>
+<h3 id="2-2-MAC地址学习机制"><a href="#2-2-MAC地址学习机制" class="headerlink" title="2.2 MAC地址学习机制"></a>2.2 MAC地址学习机制</h3><p>交换机通过<strong>泛洪学习</strong>(Flood &amp; Learn)机制来维护MAC地址表：</p>
+<ol>
+<li><strong>学习阶段</strong>：在端口收到报文时，记录源MAC地址和当前时间到FDB表</li>
+<li><strong>转发阶段</strong>：如果报文的目标MAC能在FDB表中查到，则转发给对应端口</li>
+<li><strong>泛洪阶段</strong>：如果报文的目标MAC是广播地址、未知单播或组播（BUM），发到所有端口</li>
+<li><strong>老化阶段</strong>：FDB表记录的时间超过老化时间后（通常是5分钟），自动删除记录</li>
+</ol>
+<h2 id="3-实验验证"><a href="#3-实验验证" class="headerlink" title="3. 实验验证"></a>3. 实验验证</h2><h3 id="3-1-交换机配置"><a href="#3-1-交换机配置" class="headerlink" title="3.1 交换机配置"></a>3.1 交换机配置</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 安装网桥工具</span></span><br><span class="line">apt install -y bridge-utils</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建 br0 网桥（类似虚拟机交换机），并将 eth1~eth3连接到br0上</span></span><br><span class="line">brctl addbr br0</span><br><span class="line">brctl addif br0 eth1</span><br><span class="line">brctl addif br0 eth2</span><br><span class="line">brctl addif br0 eth3</span><br><span class="line">brctl show</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用所有网络接口</span></span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth1 up</span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth2 up</span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> eth3 up</span><br><span class="line">ip <span class="built_in">link</span> <span class="built_in">set</span> br0 up</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-虚拟机网络配置"><a href="#3-2-虚拟机网络配置" class="headerlink" title="3.2 虚拟机网络配置"></a>3.2 虚拟机网络配置</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 为虚拟机配置临时IP地址</span></span><br><span class="line"><span class="comment"># vm1</span></span><br><span class="line">ifconfig eth1 10.0.0.11</span><br><span class="line"><span class="comment"># vm2  </span></span><br><span class="line">ifconfig eth1 10.0.0.12</span><br><span class="line"><span class="comment"># vm3</span></span><br><span class="line">ifconfig eth1 10.0.0.13</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-ARP协议分析"><a href="#3-3-ARP协议分析" class="headerlink" title="3.3 ARP协议分析"></a>3.3 ARP协议分析</h3><p><strong>实验：vm1 ping vm3</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># vm1 -&gt; vm3 通信测试</span></span><br><span class="line">root@vm1:~<span class="comment"># ping 10.0.0.13 -c 1</span></span><br><span class="line">PING 10.0.0.13 (10.0.0.13) 56(84) bytes of data.</span><br><span class="line">64 bytes from 10.0.0.13: icmp_seq=1 ttl=64 time=0.596 ms</span><br><span class="line"></span><br><span class="line">--- 10.0.0.13 ping statistics ---</span><br><span class="line">1 packets transmitted, 1 received, 0% packet loss, time 0ms</span><br><span class="line">rtt min/avg/max/mdev = 0.596/0.596/0.596/0.000 ms</span><br></pre></td></tr></table></figure>
+
+<p><strong>抓包分析</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># vm2 抓包（观察者视角）</span></span><br><span class="line">root@vm2:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line">05:29:50.865544 52:54:65:65:65:6a &gt; ff:ff:ff:ff:ff:ff, ethertype ARP (0x0806), length 42: Request who-has 10.0.0.13 tell 10.0.0.11, length 28</span><br><span class="line"></span><br><span class="line"><span class="comment"># vm3 抓包（目标主机视角）</span></span><br><span class="line">root@vm3:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line"><span class="comment"># vm1 发 ARP 请求找 vm3	第一次通信，未知 MAC 地址</span></span><br><span class="line">05:29:50.862687 52:54:65:65:65:6a &gt; ff:ff:ff:ff:ff:ff, ethertype ARP (0x0806), length 42: Request who-has 10.0.0.13 tell 10.0.0.11, length 28</span><br><span class="line"><span class="comment"># vm3 回应 ARP，但不会缓存 vm1 的 MAC	ARP 响应包是单播，仅 vm1 收到</span></span><br><span class="line">05:29:50.862704 52:54:65:96:16:0c &gt; 52:54:65:65:65:6a, ethertype ARP (0x0806), length 42: Reply 10.0.0.13 is-at 52:54:65:96:16:0c, length 28</span><br><span class="line"><span class="comment"># vm1 发 ICMP 请求找 vm3</span></span><br><span class="line">05:29:50.862982 52:54:65:65:65:6a &gt; 52:54:65:96:16:0c, ethertype IPv4 (0x0800), length 98: 10.0.0.11 &gt; 10.0.0.13: ICMP <span class="built_in">echo</span> request, <span class="built_in">id</span> 2949, <span class="built_in">seq</span> 1, length 64</span><br><span class="line"><span class="comment"># vm3 回 ICMP 给 vm1</span></span><br><span class="line">05:29:50.862992 52:54:65:96:16:0c &gt; 52:54:65:65:65:6a, ethertype IPv4 (0x0800), length 98: 10.0.0.13 &gt; 10.0.0.11: ICMP <span class="built_in">echo</span> reply, <span class="built_in">id</span> 2949, <span class="built_in">seq</span> 1, length 64</span><br><span class="line"><span class="comment"># 隔了 5 秒左右 vm3 发 ARP 请求找 vm1</span></span><br><span class="line">05:29:55.903301 52:54:65:96:16:0c &gt; 52:54:65:65:65:6a, ethertype ARP (0x0806), length 42: Request who-has 10.0.0.11 tell 10.0.0.13, length 28</span><br><span class="line"><span class="comment"># vm1 回应 ARP，但不会缓存 vm3 的 MAC	ARP 响应包是单播，仅 vm3 收到</span></span><br><span class="line">05:29:55.903649 52:54:65:65:65:6a &gt; 52:54:65:96:16:0c, ethertype ARP (0x0806), length 42: Reply 10.0.0.11 is-at 52:54:65:65:65:6a, length 28</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>重要发现</strong>：为什么 vm3 会隔了 5 秒左右才发 ARP 请求找 vm1？</p>
+<p>虽然 vm1 发了 ARP 请求，vm3 回答了没错，但ARP 回复不是广播包，是单播给 vm1 的。vm3 回应的时候并不会自动缓存对方（vm1）的 IP-MAC 绑定，这是常见误解。</p>
+</blockquote>
+<h3 id="3-4-交换机FDB表分析"><a href="#3-4-交换机FDB表分析" class="headerlink" title="3.4 交换机FDB表分析"></a>3.4 交换机FDB表分析</h3><p><strong>查看交换机的MAC地址表</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 到switch上查看交换机的fdb表，也就是mac地址表</span></span><br><span class="line">root@switch:~<span class="comment"># bridge fdb show br br0</span></span><br><span class="line">52:54:65:<span class="built_in">df</span>:02:d1 dev eth1 vlan 1 master br0 permanent</span><br><span class="line">52:54:65:<span class="built_in">df</span>:02:d1 dev eth1 master br0 permanent</span><br><span class="line">33:33:00:00:00:01 dev eth1 self permanent <span class="comment"># ipv6 multicast mac地址</span></span><br><span class="line">01:00:5e:00:00:01 dev eth1 self permanent <span class="comment"># ipv4 multicast mac地址</span></span><br><span class="line">33:33:ff:<span class="built_in">df</span>:02:d1 dev eth1 self permanent <span class="comment"># ipv6 用于NDP邻居发现</span></span><br><span class="line">52:54:65:bf:76:62 dev eth2 vlan 1 master br0 permanent</span><br><span class="line">52:54:65:bf:76:62 dev eth2 master br0 permanent</span><br><span class="line">33:33:00:00:00:01 dev eth2 self permanent</span><br><span class="line">01:00:5e:00:00:01 dev eth2 self permanent</span><br><span class="line">33:33:ff:bf:76:62 dev eth2 self permanent</span><br><span class="line">52:54:65:37:10:42 dev eth3 master br0 permanent</span><br><span class="line">52:54:65:37:10:42 dev eth3 vlan 1 master br0 permanent</span><br><span class="line">52:54:65:46:10:a1 dev eth3 master br0</span><br><span class="line">33:33:00:00:00:01 dev eth3 self permanent</span><br><span class="line">01:00:5e:00:00:01 dev eth3 self permanent</span><br><span class="line">33:33:ff:37:10:42 dev eth3 self permanent</span><br><span class="line">33:33:00:00:00:01 dev br0 self permanent</span><br><span class="line">01:00:5e:00:00:01 dev br0 self permanent</span><br><span class="line">33:33:ff:37:10:42 dev br0 self permanent</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>其中包含 <code>permanent</code> 的表示bridge和端口的物理地址，不需要关注。</p>
+</blockquote>
+<p><strong>查看动态学习的MAC地址</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@route1:~<span class="comment"># bridge -statistics fdb show br br0|grep -v perm</span></span><br><span class="line">52:54:65:65:65:6a dev eth1 used 9/9 master br0</span><br><span class="line">52:54:65:96:16:0c dev eth3 used 9/9 master br0</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>以第一行为例，它表示目标是 <code>52:54:65:65:65:6a</code> 的报文发到 eth1 端口，也就是MAC和端口的映射关系。</p>
+</blockquote>
+<h2 id="4-深入理解"><a href="#4-深入理解" class="headerlink" title="4. 深入理解"></a>4. 深入理解</h2><h3 id="4-1-未知单播泛洪实验"><a href="#4-1-未知单播泛洪实验" class="headerlink" title="4.1 未知单播泛洪实验"></a>4.1 未知单播泛洪实验</h3><p><strong>实验：vm2 向不存在的MAC地址发送ICMP报文</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># vm2 往 52:54:a7:bb:72:00 发一个icmp报文</span></span><br><span class="line"><span class="comment"># 配置静态arp表，让ping命令不通过arp广播返回解析mac，只发icmp报文，这样vm2的mac地址不会被学习到</span></span><br><span class="line">root@vm2:~<span class="comment"># ip neigh add 10.0.0.10 lladdr 52:54:a7:bb:72:00 dev eth1</span></span><br><span class="line">root@vm2:~<span class="comment"># ping 10.0.0.10 -c 1 -w 1</span></span><br><span class="line">PING 10.0.0.10 (10.0.0.10) 56(84) bytes of data.</span><br><span class="line"></span><br><span class="line">--- 10.0.0.10 ping statistics ---</span><br><span class="line">1 packets transmitted, 0 received, 100% packet loss, time 0ms</span><br><span class="line"></span><br><span class="line"><span class="comment"># switch学习到了vm2的mac，但是没有52:54:a7:bb:72:00的mac</span></span><br><span class="line">root@route1:~<span class="comment"># bridge -statistics fdb show br br0 | grep -v perm</span></span><br><span class="line">32:ee:65:c1:fb:26 dev eth1 used 309/309 master br0 stale</span><br><span class="line">52:54:65:ba:72:bf dev eth2 used 54/8 master br0</span><br><span class="line"></span><br><span class="line"><span class="comment"># vm1和vm3都收到了这个报文，没有回复报文</span></span><br><span class="line">root@vm1:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line">13:03:04.224521 52:54:65:ba:72:bf &gt; 52:54:a7:bb:72:00, ethertype IPv4 (0x0800), length 98: 10.0.0.12 &gt; 10.0.0.10: ICMP <span class="built_in">echo</span> request, <span class="built_in">id</span> 6113, <span class="built_in">seq</span> 1, length 64</span><br><span class="line"></span><br><span class="line">root@vm3:~<span class="comment"># tcpdump -i eth1 -nel</span></span><br><span class="line">tcpdump: verbose output suppressed, use -v or -vv <span class="keyword">for</span> full protocol decode</span><br><span class="line">listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes</span><br><span class="line">13:03:04.214844 52:54:65:ba:72:bf &gt; 52:54:a7:bb:72:00, ethertype IPv4 (0x0800), length 98: 10.0.0.12 &gt; 10.0.0.10: ICMP <span class="built_in">echo</span> request, <span class="built_in">id</span> 6113, <span class="built_in">seq</span> 1, length 64</span><br></pre></td></tr></table></figure>
+
+<p><strong>分析过程</strong>：</p>
+<ol>
+<li><p><strong>vm2 发出的报文</strong></p>
+<ul>
+<li>由于静态 ARP 已设置，vm2 直接构造了目标 MAC 是 <code>52:54:a7:bb:72:00</code> 的 ICMP 报文，无需 ARP 广播。</li>
+</ul>
+</li>
+<li><p><strong>交换机没有目标 MAC 的 FDB 记录</strong></p>
+<ul>
+<li><code>52:54:a7:bb:72:00</code> 是未知单播，交换机会将其按 BUM（Broadcast, Unknown Unicast, Multicast）方式泛洪到所有端口（除了来源端口）。</li>
+<li>所以 vm1、vm3 都收到这个包。</li>
+</ul>
+</li>
+<li><p><strong>为什么没有回应？</strong></p>
+<ul>
+<li><strong>可能 1</strong>：vm1、vm3 不是 10.0.0.10<ul>
+<li>它们收到包，但并不是目标主机，因此不会回应。</li>
+<li>抓包看到报文到了，但不会处理。</li>
+</ul>
+</li>
+<li><strong>可能 2</strong>：目标主机（MAC 为 <code>52:54:a7:bb:72:00</code>）根本不在网内<ul>
+<li>也许这个 MAC 没有挂载在任何 VM 上，或者主机未启用接口 &#x2F; 未监听。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="4-2-交换机vs集线器"><a href="#4-2-交换机vs集线器" class="headerlink" title="4.2 交换机vs集线器"></a>4.2 交换机vs集线器</h3><p>之前在大学宿舍中使用叫集线器（Hub）的设备，形态跟交换机有点类似，它们的差异在于：</p>
+<ul>
+<li><strong>集线器</strong>：没有学习能力，对所有报文都泛洪</li>
+<li><strong>交换机</strong>：具有MAC地址学习能力，可以精确转发</li>
+</ul>
+<p>所以集线器只能用于流量低的办公和家用领域，不适合IDC环境。</p>
+<h2 id="5-总结"><a href="#5-总结" class="headerlink" title="5. 总结"></a>5. 总结</h2><p>通过本次实验，我们深入理解了：</p>
+<ol>
+<li><strong>二层网络的基本原理</strong>：基于MAC地址的转发机制</li>
+<li><strong>ARP协议的工作过程</strong>：IP到MAC地址的解析过程</li>
+<li><strong>交换机的学习机制</strong>：通过泛洪学习建立MAC地址表</li>
+<li><strong>BUM流量的处理</strong>：广播、未知单播、组播的泛洪转发</li>
+<li><strong>交换机与集线器的区别</strong>：学习能力是核心差异</li>
+</ol>
+<p>这些知识为理解更复杂的网络架构奠定了基础。</p>
+]]></content>
+      <categories>
+        <category>网络</category>
+      </categories>
+      <tags>
+        <tag>Network</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>每天学习一个命令: mount 挂载文件系统</title>
+    <url>/2022/11/10/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-mount-%E6%8C%82%E8%BD%BD%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F/</url>
+    <content><![CDATA[<blockquote>
+<p>mount 挂载文件系统。它提供一个可以访问整个<a href="https://en.wikipedia.org/wiki/File_system">文件系统</a>的目录。</p>
+</blockquote>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p><strong>下面这个例子是挂载 &#x2F;dev&#x2F;sdd1 分区到 &#x2F;data 目录</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># lsblk</span></span><br><span class="line">NAME                   MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT</span><br><span class="line">sda                      8:0    0 931.5G  0 disk</span><br><span class="line">└─sda1                   8:1    0 931.5G  0 part /</span><br><span class="line">sdb                      8:16   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdc                      8:32   0 931.5G  0 disk</span><br><span class="line">└─bcache0              252:0    0 931.5G  0 disk /var/lib/docker/volumes/nova_compute/_data/mnt/b90ee29525aa30b2667340bf769ea8e3</span><br><span class="line">sdd                      8:48   0 931.5G  0 disk</span><br><span class="line">└─sdd1                   8:49   0 931.5G  0 part </span><br><span class="line">sde                      8:64   0 931.5G  0 disk</span><br><span class="line">└─sde1                   8:65   0 931.5G  0 part</span><br><span class="line">sdf                      8:80   0 931.5G  0 disk</span><br><span class="line">└─sdf1                   8:81   0 931.5G  0 part</span><br><span class="line">sdg                      8:96   0   3.7T  0 disk</span><br><span class="line">└─sdg1                   8:97   0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sdh                      8:112  0   3.7T  0 disk</span><br><span class="line">└─sdh1                   8:113  0   3.7T  0 part</span><br><span class="line">  └─dataStorage-dataLV 253:0    0   7.3T  0 lvm</span><br><span class="line">sr0                     11:0    1  1024M  0 rom</span><br><span class="line"></span><br><span class="line">// 格式化分区</span><br><span class="line">root@compute:~<span class="comment"># mkfs.ext4 /dev/sdd1</span></span><br><span class="line"></span><br><span class="line">// 创建挂载点</span><br><span class="line">root@compute:~<span class="comment"># mkdir /data</span></span><br><span class="line"></span><br><span class="line">// 挂载 /dev/sdd1 到 /data 目录</span><br><span class="line">root@compute:~<span class="comment"># mount /dev/sdd1 /data</span></span><br><span class="line"></span><br><span class="line">// 查看挂载信息</span><br><span class="line">root@compute:~<span class="comment"># mount</span></span><br><span class="line">...</span><br><span class="line">...</span><br><span class="line">/dev/sdd1 on /data <span class="built_in">type</span> ext4 (rw,relatime,data=ordered)</span><br></pre></td></tr></table></figure>
+
+<h2 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h2><h3 id="显示所有已经挂载的文件系统"><a href="#显示所有已经挂载的文件系统" class="headerlink" title="显示所有已经挂载的文件系统"></a>显示所有已经挂载的文件系统</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount </span><br></pre></td></tr></table></figure>
+
+<h3 id="挂载设备到目录"><a href="#挂载设备到目录" class="headerlink" title="挂载设备到目录"></a>挂载设备到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 以下是标准格式</span></span><br><span class="line">mount [-t <span class="built_in">type</span>] device <span class="built_in">dir</span></span><br></pre></td></tr></table></figure>
+<p><code>-t type</code>: mount 命令会检测到文件系统。参数是可选项。</p>
+<h3 id="挂载-ISO-镜像到目录"><a href="#挂载-ISO-镜像到目录" class="headerlink" title="挂载 ISO 镜像到目录"></a>挂载 ISO 镜像到目录</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">mount ISO <span class="built_in">dir</span> -o ro</span><br></pre></td></tr></table></figure>
+<p><code>-o ro</code>: ISO是只读设备，禁止进行修改。</p>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>每天学习一个命令: top 显示Linux任务</title>
+    <url>/2022/11/03/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-top-%E6%98%BE%E7%A4%BALinux%E4%BB%BB%E5%8A%A1/</url>
+    <content><![CDATA[<blockquote>
+<p> top 命令提供了正在运行的linux系统的动态实时的监控信息。常用与排查系统性能问题。</p>
+</blockquote>
+<h2 id="top常用命令"><a href="#top常用命令" class="headerlink" title="top常用命令"></a>top常用命令</h2><p>命令格式:<br><code>top [-] [d] [p] [q] [c] [C] [S] [n]</code><br>参数说明：<br><code>d</code>: 指定每两次屏幕信息刷新之间的时间间隔。当然用户可以使用s交互命令来改变之。 <code>top -d 1</code> ，则top每隔1秒刷新显示一次<br><code>p</code>: 通过指定监控进程ID来仅仅监控某个进程的状态。<code>top -p 16091</code> 只看某一个进程的<br><code>c</code>: 显示整个命令行而不只是显示命令名</p>
+<p>在top命令的显示窗口，我们还可以输入以下字母，进行一些交互:<br><code>h</code>或<code>?</code>: 显示帮助画面，给出一些简短的命令总结说明。<br><code>q</code>: 退出程序。<br><code>M</code>: 根据驻留内存大小进行排序。<strong>这个要记住</strong><br><code>P</code>: 根据CPU使用百分比大小进行排序。<strong>这个要记住</strong><br><code>T</code>: 根据时间&#x2F;累计时间进行排序。</p>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">top</span><br></pre></td></tr></table></figure>
+
+<p>top 命令区分为两个部分，上面为统计部分，下面为进程信息。</p>
+<p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/Untitled.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picture-bed/main/Untitled.png"  lazyload></a></p>
+<h3 id="系统统计信息"><a href="#系统统计信息" class="headerlink" title="系统统计信息"></a>系统统计信息</h3><h4 id="第一行"><a href="#第一行" class="headerlink" title="第一行"></a>第一行</h4><p><code>top - 11:11:40 up 4 days, 20:30, 2 users, load average: 0.89, 0.96, 3.77</code></p>
+<p>系统时间，已运行天数，登录用户数，1分钟，5分钟，15分钟系统平均负载</p>
+<h4 id="第二行"><a href="#第二行" class="headerlink" title="第二行"></a>第二行</h4><p><code>Tasks: 969 total, 2 running, 682 sleeping, 0 stopped, 1 zombie</code><br>运行的任务数，总量：969；运行中：2；睡眠：682；停止：0；僵尸进程：1；</p>
+<h4 id="第三行"><a href="#第三行" class="headerlink" title="第三行"></a>第三行</h4><p><code>%Cpu(s): 11.3 us, 6.2 sy, 0.0 ni, 82.3 id, 0.1 wa, 0.0 hi, 0.0 si, 0.0 st</code></p>
+<p><code>us</code>: (user)用户空间占用CPU百分比<br><code>sy</code>: (system)系统空间占用CPU百分比<br><code>ni</code>: (nice)改变过优先级的进程占用CPU百分比<br><code>id</code>: (idle)处于空闲状态占用CPU百分比<br><code>hi</code>: (Hardware interrputs) 硬中断占用CPU百分比<br><code>si</code>: (Software interrputs) 软中断占用CPU百分比<br><code>st</code>: (Steal Time) <a href="https://www.cnblogs.com/menkeyi/p/6732020.html">虚拟机窃取CPU时间</a>是虚拟 CPU 在管理程序为另一个虚拟处理器提供服务时等待真实 CPU 的时间百分比</p>
+<blockquote>
+<p>需要关注 <code>us, sy, wa</code> 这3个值占用是否高。多少算高？<code>us</code> 一般超过75%就算高，<code>sy</code> 一般超过30%就算高，<code>wa</code> 超过5%就算高。</p>
+</blockquote>
+<h4 id="第四行"><a href="#第四行" class="headerlink" title="第四行"></a>第四行</h4><p><code>KiB Mem : 33008723+total, 24753566+free, 15236984 used, 67314576 buff/cache</code></p>
+<p><code>total</code>: 物理内存总量<br><code>free</code>: 空闲内存<br><code>used</code>: 已使用内存<br><code>buff/cache</code>: 缓冲&#x2F;缓存的内存</p>
+<blockquote>
+<p><code>buffer</code>: (写)缓冲区是系统两端处理速度的平衡。通常来说硬盘的写入的速度是性能瓶颈，引入缓冲区是为了减少短期内突发的I&#x2F;O的影响。举个栗子，vim 编辑器并不是每输入一个字符就保存一次，默认是先保存到buffer中，用户触发 <code>:w</code> 命令进行保存时再写入到磁盘。<br><code>cache</code>: (读)缓存区是处理两端速度不匹配的一种折中策略。主要原因是CPU和内存直接的速度差异越来越大。如果假的内存可以和CPU做的一样快，cache就可以不用了。</p>
+</blockquote>
+<h4 id="第五行"><a href="#第五行" class="headerlink" title="第五行"></a>第五行</h4><p><code>KiB Swap: 0 total, 0 free, 0 used. 31221619+avail Mem</code></p>
+<p><code>Swap</code>: 交换分区信息<br><code>total</code>: 交换分区总量<br><code>free</code>: 交换分区空闲<br><code>used</code>: 已使用的空间<br><code>avail</code>: 可用的交换分区</p>
+<blockquote>
+<p>交换分区通常我们说的虚拟内存，是在硬盘中划分一个分区出来。<strong>当物理内存不够用的时候</strong>，内核就会释放 <code>buffers/cache</code> 里一些长时间不使用的程序，然后将这些程序临时放到 <code>Swap</code> 分区中。</p>
+</blockquote>
+<h3 id="进程信息"><a href="#进程信息" class="headerlink" title="进程信息"></a>进程信息</h3><p><code>PID</code>: 进程id<br><code>USER</code>: 进程所有者用户名<br><code>PR</code>: 优先级。数值越大优先级越高<br><code>NI</code>: nice值，负值表示高优先级，正值表示低优先级<br><code>VIRT</code>: 进程使用的虚拟内存总量，单位KB。VIRT&#x3D;SWAP+RES<br><code>SWAP</code>: 进程使用的虚拟内存中被换出的大小，单位KB<br><code>RES</code>: 进程使用的、未被换出的物理内存大小，单位KB，RES&#x3D;CODE+DATA<br><code>SHR</code>: 共享内存大小，单位KB<br><code>S</code>: 进程状态。D表示不可中断的睡眠状态；R表示运行；S表示睡眠；T表示跟踪&#x2F;停止；Z表示僵尸进程。<br><code>%CPU</code>: 上次更新到现在的CPU占用百分比<br><code>%MEM</code>: 进程使用的物理内存百分比<br><code>TIME+</code>: 进程使用的CPU时间总计，单位1&#x2F;100秒<br><code>COMMAND</code>: 命令名&#x2F;命令行</p>
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><ul>
+<li><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a></li>
+<li><a href="https://blog.csdn.net/duzilonglove/article/details/80096567">Linux系统监控——top命令_Storm啊的博客-CSDN博客_linux top监控某个进程</a></li>
+<li><a href="https://einverne.github.io/post/2014/04/top-linux-command.html">每天学习一个命令：top 查看资源占用 | Verne in GitHub</a></li>
+<li><a href="https://linux.die.net/man/1/top">top(1): tasks - Linux man page</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>每天学习一个命令: vmstat 统计系统资源使用</title>
+    <url>/2022/11/07/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-vmstat-%E7%BB%9F%E8%AE%A1%E7%B3%BB%E7%BB%9F%E8%B5%84%E6%BA%90%E4%BD%BF%E7%94%A8/</url>
+    <content><![CDATA[<blockquote>
+<p>vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 活动信息。<br>生成的第一个报告给出了自上次重新启动依赖的平均值。优势是可以按周期或实时采集上述信息。</p>
+</blockquote>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 1  0      0 759052 1845192 99157744    0    0     0    50    0    0  2  1 96  1  0</span><br></pre></td></tr></table></figure>
+<h3 id="解释输出信息"><a href="#解释输出信息" class="headerlink" title="解释输出信息"></a>解释输出信息</h3><p><code>procs</code>:</p>
+<pre><code>r: 正在运行的或者等待CPU运行的进程数。当这个值长时间超过了CPU个数，就会出现CPU瓶颈。一般负载大于3就算比较高，大于5是高，大于10系统就不正常。
+b: 等待 I/O 完成的阻塞的进程数。
+</code></pre>
+<p><code>memory</code>: </p>
+<pre><code>以下参数会受到 --unit 参数的影响
+
+swpd: 交换内存使用量。
+free: 空闲内存的数量。
+buff: 缓冲区内存使用量。
+cache: 缓存区内存使用量。
+incat: 禁用的内存数量。(-a option)
+active: 可用的内存数量。(-a option)
+</code></pre>
+<p><code>swap</code>:</p>
+<pre><code>&gt; 以下参数会受到 `--unit` 参数的影响
+
+si: 从磁盘交换到内存的内存量(/s)。
+so: 从内存交换到磁盘内存量(/s)。
+</code></pre>
+<p><code>io</code>:</p>
+<pre><code>bi: 从块设备接受的块(block/s)。
+bo: 发送到块设备的块(block/s)。
+</code></pre>
+<p><code>system</code>:</p>
+<pre><code>in: 每秒钟系统中断数，包括时钟中断。
+cs: 每秒钟系统切换上下文的次数。
+</code></pre>
+<p><code>cpu</code>:</p>
+<pre><code>以下参数之和是总的CPU时间。
+
+us: CPU在用户空间所占用的时间。
+sy: CPU在内核空间所占用的时间。
+id: CPU空闲时间。
+wa: CPU在等待IO所占用的实际。
+st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time` 维持在很高的数值上，大概率是服务器创建虚拟机太多。)
+</code></pre>
+<h3 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h3><h4 id="每2秒显示报告共5次"><a href="#每2秒显示报告共5次" class="headerlink" title="每2秒显示报告共5次"></a>每2秒显示报告共5次</h4><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat 2 5</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 0  1      0 757084 1844672 99160048    0    0     0    50    0    0  2  1 96  1  0</span><br><span class="line"> 2  1      0 756924 1844672 99160096    0    0     8   604 4883 9736  4  1 95  1  0</span><br><span class="line"> 0  0      0 757040 1844672 99160144    0    0     8   444 3395 8276  2  0 97  1  0</span><br><span class="line"> 0  0      0 757600 1844672 99160184    0    0     0   466 2905 7775  1  0 99  1  0</span><br><span class="line"> 0  0      0 758116 1844676 99160184    0    0     0  2440 3070 7604  1  0 99  1  0</span><br></pre></td></tr></table></figure>
+
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://manned.org/vmstat#head2">vmstat - manned.org</a><br><a href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解CPU steal time - MKY-门可意 - 博客园</a><br><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a><br><a href="https://www.cnblogs.com/ggjucheng/archive/2012/01/05/2312625.html">Linux vmstat命令实战详解 - ggjucheng - 博客园</a></p>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>kolla镜像构建</title>
+    <url>/2022/01/21/%E6%9E%84%E5%BB%BAkolla-images/</url>
+    <content><![CDATA[<!-- TOC -->
+
+<ul>
+<li><a href="#kolla-%E7%AE%80%E4%BB%8B">kolla 简介</a><ul>
+<li><a href="#kolla%E6%98%AF%E6%80%8E%E4%B9%88%E5%AE%9E%E7%8E%B0%E7%94%9F%E4%BA%A7%E7%BA%A7%E5%88%AB%E7%9A%84%E9%83%A8%E7%BD%B2%E5%B7%A5%E5%85%B7">kolla是怎么实现生产级别的部署工具？</a></li>
+</ul>
+</li>
+<li><a href="#kolla-build-images">kolla build images</a><ul>
+<li><a href="#kolla%E9%95%9C%E5%83%8F%E5%88%92%E5%88%86">kolla镜像划分</a></li>
+<li><a href="#kolla%E9%95%9C%E5%83%8F%E5%88%86%E5%B1%82">kolla镜像分层</a></li>
+<li><a href="#%E9%95%9C%E5%83%8F%E5%8A%9F%E8%83%BD%E5%88%92%E5%88%86">镜像功能划分</a></li>
+<li><a href="#kolla%E6%9E%84%E5%BB%BA%E9%95%9C%E5%83%8F">kolla构建镜像</a><ul>
+<li><a href="#%E5%87%86%E5%A4%87%E7%8E%AF%E5%A2%83">准备环境</a></li>
+<li><a href="#kolla-buildconf%E9%85%8D%E7%BD%AE">kolla-build.conf配置</a></li>
+<li><a href="#%E6%9E%84%E5%BB%BAkolla%E5%9F%BA%E7%A1%80%E9%95%9C%E5%83%8Fbase">构建kolla基础镜像base</a><ul>
+<li><a href="#%E4%BF%AE%E6%94%B9base%E9%95%9C%E5%83%8Fdebian-apt%E6%BA%90-pip%E6%BA%90">修改base镜像debian apt源 pip源</a></li>
+</ul>
+</li>
+<li><a href="#%E6%9E%84%E5%BB%BAkolla%E9%95%9C%E5%83%8F">构建kolla镜像</a><ul>
+<li><a href="#kolla-build-%E5%B8%B8%E7%94%A8%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E">kolla-build 常用参数说明</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#%E6%8C%87%E5%AE%9Anova%E6%BA%90%E7%A0%81%E6%9E%84%E5%BB%BA%E9%95%9C%E5%83%8F">指定Nova源码构建镜像</a></li>
+</ul>
+</li>
+<li><a href="#%E5%8F%82%E8%80%83">参考</a></li>
+</ul>
+<!-- /TOC -->
+
+<h1 id="kolla-简介"><a href="#kolla-简介" class="headerlink" title="kolla 简介"></a>kolla 简介</h1><blockquote>
+<p>Kolla’s mission is to provide production-ready containers and deployment tools for operating OpenStack clouds.</p>
+</blockquote>
+<p><strong>Kolla 的使命是为运营 OpenStack 云提供生产就绪的容器和部署工具。</strong></p>
+<h2 id="kolla是怎么实现生产级别的部署工具？"><a href="#kolla是怎么实现生产级别的部署工具？" class="headerlink" title="kolla是怎么实现生产级别的部署工具？"></a>kolla是怎么实现生产级别的部署工具？</h2><p>kolla使用了两种主要的技术：<strong>ansible自动化工具和docker容器。</strong> 通常说的kolla指的的是kolla，kolla-ansible两个项目。kolla 主要负责OpenStack的docker镜像的构建，kolla-ansible 通过ansible部署kolla的镜像的playbook。</p>
+<blockquote>
+<p>实际上，根据 kolla还有个<a href="https://docs.openstack.org/kayobe/latest/">Kayobe</a>项目， 我理解它是用于管理OpenStack集群工具，目前用的人不多。</p>
+<p>还有一个项目 Kolla-kubernetes，在kubernetes上部署OpenStack。但是和另一个项目 openstack-helm 重合较多，<a href="http://lists.openstack.org/pipermail/openstack-dev/2018-March/128822.html">让官方叫停了</a>。</p>
+</blockquote>
+<h1 id="kolla-build-images"><a href="#kolla-build-images" class="headerlink" title="kolla build images"></a>kolla build images</h1><p>kolla-build是一个自动化构建OpenStack服务所需要的镜像工具。仓库中包含大量的Dockerfile，供构建docker镜像的使用。</p>
+<p>实际上部署通过kolla-ansible部署OpenStack，是不需要kolla-build的。kolla-ansible在部署时会检测镜像，如果镜像没有准备好就会从docker远程仓库Pull对应的镜像，然后在执行deploy。</p>
+<p>一般来说生产环境搭建环境，因为网络原因部署的速度是比较慢的。最好使用本地镜像仓库，这就需要我们自己构建镜像，下面详细介绍kolla本地构建镜像。</p>
+<h2 id="kolla镜像划分"><a href="#kolla镜像划分" class="headerlink" title="kolla镜像划分"></a>kolla镜像划分</h2><p><a class="simple-lightbox" href="https://pic3.zhimg.com/80/v2-016b2ae2da49a3400821ac5cbc182d1a_1440w.jpg"><img   src="/images/loading.svg" data-src="https://pic3.zhimg.com/80/v2-016b2ae2da49a3400821ac5cbc182d1a_1440w.jpg"  alt="image" lazyload></a></p>
+<p>kolla镜像目前已达到个2345个，实际上不是完全独立的2345个服务。而是针对不同的场景分别构建，达到全面覆盖的结果。同时支持binary和source两种构建方案，而且支持不同的操作系统CentOS，Ubuntu，Debian作为基础镜像，可以满足用户不同的需求。同时也支持在不修改源代码情况下，对镜像进行定制。</p>
+<h2 id="kolla镜像分层"><a href="#kolla镜像分层" class="headerlink" title="kolla镜像分层"></a>kolla镜像分层</h2><p>OpenStack中有很多服务隶属同一个项目。例如，nova-api， nova-conductor，nova-scheduler，nova-compute等等都输于Nova项目，所以，kolla先构建一个通用的nova-base镜像，然后在此基础上分别构建不同的服务。</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">docker/</span><br><span class="line">├── base</span><br><span class="line">│   └── Dockerfile.j2</span><br><span class="line">├── horizon</span><br><span class="line">│   └── Dockerfile.j2</span><br><span class="line">├── mariadb</span><br><span class="line">│   └── Dockerfile.j2</span><br><span class="line">├── nova</span><br><span class="line">│   ├── nova-api</span><br><span class="line">│   │   └── Dockerfile.j2</span><br><span class="line">│   ├── nova-base</span><br><span class="line">│   │   └── Dockerfile.j2</span><br><span class="line">│   └── nova-compute</span><br><span class="line">│       └── Dockerfile.j2</span><br><span class="line">└── openstack-base</span><br><span class="line">    └── Dockerfile.j2</span><br></pre></td></tr></table></figure>
+
+<h2 id="镜像功能划分"><a href="#镜像功能划分" class="headerlink" title="镜像功能划分"></a>镜像功能划分</h2><p>kolla项目不仅仅吧OpenStack服务集成了，而且把基础服务也包含在内。如 mariadb，rabbitmq，memcache等等。</p>
+<h2 id="kolla构建镜像"><a href="#kolla构建镜像" class="headerlink" title="kolla构建镜像"></a>kolla构建镜像</h2><p>kolla已经涵盖了2000多个镜像，基本上涵盖了大部分软件。如果说这里没有我们需要的应用版本，也可以通过编写Dockerfile来解决。下面我分为三步快速的构建kolla镜像。</p>
+<ol>
+<li>准备环境</li>
+<li>修改kolla-build.conf配置</li>
+<li>构建kolla镜像</li>
+</ol>
+<h3 id="准备环境"><a href="#准备环境" class="headerlink" title="准备环境"></a>准备环境</h3><p>操作系统： Ubuntu Server18.04<br>规格： 4U4G</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="language-bash">安装docker</span></span><br><span class="line">apt-get remove docker docker-engine docker-ce docker.io</span><br><span class="line">apt-get install apt-transport-https ca-certificates curl software-properties-common -y</span><br><span class="line">curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -</span><br><span class="line">add-apt-repository &quot;deb [arch=amd64] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu $(lsb_release -cs) stable&quot;</span><br><span class="line">apt-get update -y</span><br><span class="line">apt-get install docker-ce -y</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">安装pip3</span></span><br><span class="line">apt install python3-pip python3-venv</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">使用Python虚拟环境</span></span><br><span class="line">python3 -m venv .virtualenvs/kolla-build</span><br><span class="line">source .virtualenvs/kolla-build/bin/activeate</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">安装kolla-build命令</span></span><br><span class="line">pip3 install kolla</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">安装tox</span></span><br><span class="line">pip3 install tox</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash"><span class="built_in">clone</span> kolla代码</span></span><br><span class="line">git clone https://github.com/openstack/kolla.git -b stable/victoria</span><br><span class="line"><span class="meta"></span></span><br><span class="line"><span class="meta"># </span><span class="language-bash">生成 etc/kolla/kolla-build.conf</span></span><br><span class="line">tox -e genconfig -i https://pypi.tuna.tsinghua.edu.cn/simple</span><br></pre></td></tr></table></figure>
+
+<h3 id="kolla-build-conf配置"><a href="#kolla-build-conf配置" class="headerlink" title="kolla-build.conf配置"></a>kolla-build.conf配置</h3><p> <code>vim etc/kolla/kolla-build.conf</code></p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">[DEFAULT]</span><br><span class="line">base = debian # 基础镜像 可选centos，debian，ubuntu。默认centos</span><br><span class="line">base_arch = x86_64 # 基础镜像架构x86_64</span><br><span class="line">skip_existing = true # 跳过已构建的镜像</span><br><span class="line">registry = leifeng.harbor.com # 指定镜像仓库</span><br><span class="line">install_type = source # 安装OpenStack类型，可选source，binary。 推荐source 源码安装</span><br><span class="line">openstack_branch = victoria # openstack 版本</span><br></pre></td></tr></table></figure>
+
+<h3 id="构建kolla基础镜像base"><a href="#构建kolla基础镜像base" class="headerlink" title="构建kolla基础镜像base"></a>构建kolla基础镜像base</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">kolla-build --config-file etc/kolla/kolla-build.conf ^base </span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>Note: ^base前面的^符合不能省略，这里使用了正则表示式，匹配句首为base的image。如果缺少该参数会构建openstack-base，nova-base等等包含base字段的image。</p>
+</blockquote>
+<h4 id="修改base镜像debian-apt源-pip源"><a href="#修改base镜像debian-apt源-pip源" class="headerlink" title="修改base镜像debian apt源 pip源"></a>修改base镜像debian apt源 pip源</h4><p>默认base镜像使用的是国外的apt源，国内下载软件速度会很慢。而且构建失败的镜像较多。</p>
+<p>更改debian apt源可以直接修改base对应的 docker&#x2F;base&#x2F;Dockerfile.j2源码。</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">...</span><br><span class="line">&#123;% elif base_distro == &#x27;debian&#x27; %&#125;</span><br><span class="line">    &#123;% set base_apt_keys = [</span><br><span class="line">      &#x27;46095ACC8548582C1A2699A9D27D666CD88E42B4&#x27;，</span><br><span class="line">      &#x27;F1656F24C74CD1D8&#x27;，</span><br><span class="line">      &#x27;F77F1EDA57EBB1CC&#x27;，</span><br><span class="line">      &#x27;F6609E60DC62814E&#x27;，</span><br><span class="line">    ] %&#125;</span><br><span class="line">    &#123;% set remote_apt_keys = [</span><br><span class="line">      &#x27;https://download.docker.com/linux/debian/gpg&#x27;，</span><br><span class="line">      &#x27;https://packages.grafana.com/gpg.key&#x27;，</span><br><span class="line">      &#x27;http://buster-ussuri.debian.net/debian/dists/pubkey.gpg&#x27;，</span><br><span class="line">      &#x27;https://packages.treasuredata.com/GPG-KEY-td-agent&#x27;，</span><br><span class="line">      &#x27;https://repos.influxdata.com/influxdb.key&#x27;，</span><br><span class="line">      &#x27;https://obs.linaro.org/repos/home:/marcin.juszkiewicz/debian-buster/Release.key&#x27;，</span><br><span class="line">    ] %&#125;</span><br><span class="line">    &#123;% set base_apt_packages = base_apt_packages +</span><br><span class="line">      [&#x27;sudo&#x27;，]</span><br><span class="line">    %&#125;</span><br><span class="line">&#123;% endif %&#125;</span><br></pre></td></tr></table></figure>
+
+<p>和修改源码相比我更喜欢等base镜像构建完成，直接在base镜像上修改apt源和pip源。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># sources.list</span></span><br><span class="line">vim sources.list</span><br><span class="line">deb http://mirrors.aliyun.com/debian/ buster main non-free contrib</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian/ buster main non-free contrib</span><br><span class="line">deb http://mirrors.aliyun.com/debian-security buster/updates main</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian-security buster/updates main</span><br><span class="line">deb http://mirrors.aliyun.com/debian/ buster-updates main non-free contrib</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian/ buster-updates main non-free contrib</span><br><span class="line">deb http://mirrors.aliyun.com/debian/ buster-backports main non-free contrib</span><br><span class="line">deb-src http://mirrors.aliyun.com/debian/ buster-backports main non-free contrib</span><br><span class="line"></span><br><span class="line"><span class="comment"># pip.conf</span></span><br><span class="line">vim pip.conf</span><br><span class="line">[global]</span><br><span class="line"><span class="built_in">timeout</span> = 6000</span><br><span class="line">index-url = http://mirrors.aliyun.com/pypi/simple/</span><br><span class="line">trusted-host = mirrors.aliyun.com</span><br><span class="line"></span><br><span class="line"><span class="comment"># Dockerfile</span></span><br><span class="line">vim Dockerfile</span><br><span class="line">FROM leifeng.harbor.com/kolla/debian-source-base:11.2.1</span><br><span class="line">COPY pip.conf /etc/pip.conf</span><br><span class="line">COPY sources.list /etc/apt/sources.list</span><br><span class="line">RUN pip install --upgrade pip setuptools</span><br><span class="line"></span><br><span class="line"><span class="comment"># build 新的base镜像</span></span><br><span class="line">docker build -t leifeng.harbor.com/kolla/debian-source-base:11.2.1-leifeng .</span><br></pre></td></tr></table></figure>
+
+<h3 id="构建kolla镜像"><a href="#构建kolla镜像" class="headerlink" title="构建kolla镜像"></a>构建kolla镜像</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">kolla-build --config-file etc/kolla/kolla-build.conf --tag 11.2.1-leifeng -p default</span><br></pre></td></tr></table></figure>
+
+<h4 id="kolla-build-常用参数说明"><a href="#kolla-build-常用参数说明" class="headerlink" title="kolla-build 常用参数说明"></a>kolla-build 常用参数说明</h4><ul>
+<li>–config-file 指定kolla-build.conf路径</li>
+<li>–tag 指定镜像tag</li>
+<li>–skip-existing 跳过已构建好的镜像</li>
+<li>–push 镜像构建完成后push到仓库中</li>
+<li>–registry 指定镜像仓库</li>
+<li>-p –profile 指定需要构建的一组镜像列表。默认存在infra，main，aux，default。可以通过kolla-build -p default –list-images 查看镜像列表<br>可以在配置文件中修改:</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">[profiles]</span><br><span class="line"></span><br><span class="line">#</span><br><span class="line"># From kolla</span><br><span class="line">#</span><br><span class="line"></span><br><span class="line"># Infra images (list value)</span><br><span class="line">#infra = certmonger，cron，elasticsearch，etcd，fluentd，haproxy，hacluster，keepalived，kibana，kolla-toolbox，logstash，mariadb，memcached，openvswitch，ptp，qdrouterd，rabbitmq，redis，rsyslog，skydive，storm，tgtd</span><br><span class="line"></span><br><span class="line"># Main images (list value)</span><br><span class="line">#main = ceilometer，cinder，glance，heat，horizon，iscsi，keystone，neutron，nova-，placement，swift</span><br><span class="line"></span><br><span class="line"># Aux Images (list value)</span><br><span class="line">#aux = aodh，blazar，cloudkitty，designate，ec2-api，freezer，gnocchi，influxdb，ironic，kafka，karbor，kuryr，magnum，manila，masakari，mistral，monasca，murano，novajoin，octavia，panko，qinling，rally，redis，sahara，searchlight，senlin，solum，tacker，telegraf，trove，vitrage，zaqar，zookeeper，zun</span><br><span class="line"></span><br><span class="line"># Default images (list value)</span><br><span class="line">#default = chrony，cron，kolla-toolbox，fluentd，glance，haproxy，heat，horizon，keepalived，keystone，mariadb，memcached，neutron，nova-，placement，openvswitch，rabbitmq</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>NOTE: 第一次构建所有镜像，时间较长。如果出现异常中断的，可以重复执行。</p>
+</blockquote>
+<h2 id="指定Nova源码构建镜像"><a href="#指定Nova源码构建镜像" class="headerlink" title="指定Nova源码构建镜像"></a>指定Nova源码构建镜像</h2><p>构建完成后Nova的源代码来自 <code>https://tarballs.opendev.org/openstack/nova/nova-stable-victoria.tar.gz</code> 。大部分情况下，我们只需要构建有代码提交的仓库，其他的镜像不需要重新构建。根据<a href="#kolla%E9%95%9C%E5%83%8F%E5%88%86%E5%B1%82">kolla镜像分层</a>的原理我们只需要从nova-base开始构建就可以了。</p>
+<p>基于刚才构建好的debian-source-nova-base:11.2.1镜像，重新构建Nova镜像, 文章中我使用为nova victoria版本源代码。你可以替换为公司的源代码。kolla支持git，local，url三种方式安装Nova源代码，这里以local为例。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> /home/github/</span><br><span class="line">git <span class="built_in">clone</span> https://github.com/openstack/nova.git -b stable/victoria</span><br><span class="line"></span><br><span class="line"><span class="comment">## 修改 kolla-build.conf配置</span></span><br><span class="line"></span><br><span class="line">[nova-base]</span><br><span class="line"><span class="built_in">local</span> = /home/github/nova <span class="comment"># 添加Nova源码路径</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"><span class="comment"># From kolla</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Source location type (string value)</span></span><br><span class="line"><span class="comment"># Possible values:</span></span><br><span class="line"><span class="comment"># local - &lt;No description provided&gt;</span></span><br><span class="line"><span class="comment"># git - &lt;No description provided&gt;</span></span><br><span class="line"><span class="comment"># url - &lt;No description provided&gt;</span></span><br><span class="line"><span class="comment">#type = url</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># The location for source install (string value)</span></span><br><span class="line"><span class="comment">#location = $tarballs_base/openstack/nova/nova-stable-victoria.tar.gz</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Git reference to pull, commit sha, tag or branch name (string value)</span></span><br><span class="line"><span class="comment">#reference = &lt;None&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 仅构建Nova镜像</span></span><br><span class="line">kolla-build --config-file etc/kolla/kolla-build.conf ^nova</span><br></pre></td></tr></table></figure>
+
+<h1 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h1><ol>
+<li><a href="https://zhuanlan.zhihu.com/p/104357030">管理2000+Docker镜像，Kolla是如何做到的</a></li>
+<li><a href="https://blog.inkubate.io/install-and-configure-openstack-pike-with-kolla-as-a-standalone/">Install and configure OpenStack Pike with Kolla as a standalone</a> </li>
+<li><a href="https://docs.openstack.org/kolla/latest/admin/index.html#building-container-images">OpenStack Kolla build images</a></li>
+</ol>
+]]></content>
+      <categories>
+        <category>云计算</category>
+      </categories>
+      <tags>
+        <tag>OpenStack</tag>
+        <tag>Kolla</tag>
       </tags>
   </entry>
 </search>
