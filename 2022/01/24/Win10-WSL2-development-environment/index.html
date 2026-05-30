@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>Win10+WSL2 开发环境记录</title>
+<meta name="keywords" content="Win10+WSL2 开发环境记录, fuscoyu&#39;s Blog">
+<meta name="description" content="WSL2
+WSL2
+Windows10
+安装wsl2
+常用软件
+
+
+Ubuntu 20.04
+安装snap
+
+
+FAQ
+clipboard: error invoking win32yank.exe
+chrome 解锁10080端口
+wsl">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="Win10+WSL2 开发环境记录">
+<meta property="og:description" content="WSL2
+WSL2
+Windows10
+安装wsl2
+常用软件
+
+
+Ubuntu 20.04
+安装snap
+
+
+FAQ
+clipboard: error invoking win32yank.exe
+chrome 解锁10080端口
+wsl">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">Win10+WSL2 开发环境记录</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2022-01-24</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/WSL2/">
+              WSL2
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Tmux/">
+              Tmux
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Win10/">
+              Win10
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <h1 id="WSL2"><a href="#WSL2" class="headerlink" title="WSL2"></a>WSL2</h1><ul>
+<li><a href="#wsl2">WSL2</a><ul>
+<li><a href="#windows10">Windows10</a><ul>
+<li><a href="#%E5%AE%89%E8%A3%85wsl2">安装wsl2</a></li>
+<li><a href="#%E5%B8%B8%E7%94%A8%E8%BD%AF%E4%BB%B6">常用软件</a></li>
+</ul>
+</li>
+<li><a href="#ubuntu-2004">Ubuntu 20.04</a><ul>
+<li><a href="#%E5%AE%89%E8%A3%85snap">安装snap</a></li>
+</ul>
+</li>
+<li><a href="#faq">FAQ</a><ul>
+<li><a href="#clipboard-error-invoking-win32yankexe">clipboard: error invoking win32yank.exe</a></li>
+<li><a href="#chrome-%E8%A7%A3%E9%94%8110080%E7%AB%AF%E5%8F%A3">chrome 解锁10080端口</a></li>
+<li><a href="#wsl%E5%8D%A0%E7%94%A8%E5%86%85%E5%AD%98">wsl占用内存</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>在换工作期间，学习了PegasusWang <a target="_blank" rel="noopener" href="https://www.imooc.com/learn/1129">玩转vim</a>。喜欢上了vim插件和快捷键。这里记录我在Windows+wsl2(windows subsystem for linux)开发环境的搭建过程，方便我重新构建环境。（主要是我怕忘）</p>
+<h2 id="Windows10"><a href="#Windows10" class="headerlink" title="Windows10"></a>Windows10</h2><h3 id="安装wsl2"><a href="#安装wsl2" class="headerlink" title="安装wsl2"></a>安装wsl2</h3><p><a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/windows/wsl/install">官方文档</a></p>
+<p>以下是摘录出来的内容，在Windows终端上以管理员执行即可。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># install wsl</span></span><br><span class="line">wsl --install</span><br><span class="line"><span class="comment"># enable wsl2</span></span><br><span class="line">dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart</span><br><span class="line"><span class="comment"># download wsl2 kernel update</span></span><br><span class="line">https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi</span><br><span class="line"><span class="comment"># setting wsl2 as default </span></span><br><span class="line">wsl --set-default-version 2</span><br><span class="line"><span class="comment"># subsystem list</span></span><br><span class="line">wsl -l -v</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以通过Micorsoft store 搜索下载Ubuntu20.04</p>
+<h3 id="常用软件"><a href="#常用软件" class="headerlink" title="常用软件"></a>常用软件</h3><ol>
+<li><p><a target="_blank" rel="noopener" href="https://ditto-cp.sourceforge.io/">Ditto</a></p>
+<p> ditto 是window剪贴板的拓展工具。你可以将一些内容复制到剪贴板中，方便日后查看。</p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://github.com/Wox-launcher/Wox/releases">Wox</a></p>
+<p> 快速搜索工具，应用于windows平台，alfred替代品。</p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://everything.en.softonic.com/download">Everything</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://github.com/mintty/wsltty">wsltty</a></p>
+<p> 目前我认为最好用的终端。启动快，中文输入不卡顿。</p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://www.7-zip.org/download.html">7zip</a></p>
+<p> 解压和压缩工具</p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://www.notion.so/desktop">Notion</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://www.postman.com/downloads/">Postman</a></p>
+</li>
+</ol>
+<h2 id="Ubuntu-20-04"><a href="#Ubuntu-20-04" class="headerlink" title="Ubuntu 20.04"></a>Ubuntu 20.04</h2><p>打开wsltty 安装以下软件</p>
+<ul>
+<li>tmux</li>
+<li>neovim</li>
+<li>zsh</li>
+<li>commitizen</li>
+<li>mycli</li>
+<li>tldr</li>
+<li>unzip</li>
+<li>mlocate</li>
+<li>ctags</li>
+<li>python3-pip</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># apt</span></span><br><span class="line">sudo apt install -y tmux ctags neovim python3-neovim python3-pip unzip mlocate zsh</span><br><span class="line"></span><br><span class="line"><span class="comment"># coc.vim</span></span><br><span class="line">curl -sL install-node.vercel.app/lts | sudo bash</span><br><span class="line"></span><br><span class="line"><span class="comment"># pip</span></span><br><span class="line">pip install commitizen mycli tldr</span><br><span class="line"></span><br><span class="line"><span class="comment"># 下载MesloLGS字体</span></span><br><span class="line"><span class="comment"># https://github.com/romkatv/powerlevel10k#meslo-nerd-font-patched-for-powerlevel10k</span></span><br><span class="line">MesloLGS NF Regular.ttf</span><br><span class="line">MesloLGS NF Bold.ttf</span><br><span class="line">MesloLGS NF Italic.ttf</span><br><span class="line">MesloLGS NF Bold Italic.ttf</span><br><span class="line"></span><br><span class="line"><span class="comment"># 安装oh-my-zsh</span></span><br><span class="line">sh -c <span class="string">&quot;<span class="subst">$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)</span>&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># zplug</span></span><br><span class="line">$ curl -sL --proto-redir -all,https https://raw.githubusercontent.com/zplug/installer/master/installer.zsh | zsh</span><br><span class="line"></span><br><span class="line"><span class="comment"># p10k themer</span></span><br><span class="line">git <span class="built_in">clone</span> --depth=1 https://github.com/romkatv/powerlevel10k.git <span class="variable">$&#123;ZSH_CUSTOM:-<span class="variable">$HOME</span>/.oh-my-zsh/custom&#125;</span>/themes/powerlevel10k</span><br><span class="line"></span><br><span class="line"><span class="comment"># nvim + tmux + wsl2 复制到系统剪贴板</span></span><br><span class="line">curl -sLo/tmp/win32yank.zip https://github.com/equalsraf/win32yank/releases/download/v0.0.4/win32yank-x64.zip</span><br><span class="line">unzip -p /tmp/win32yank.zip win32yank.exe &gt; /tmp/win32yank.exe</span><br><span class="line"><span class="built_in">chmod</span> +x /tmp/win32yank.exe</span><br><span class="line">sudo <span class="built_in">mv</span> /tmp/win32yank.exe /usr/local/bin/</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h3 id="安装snap"><a href="#安装snap" class="headerlink" title="安装snap"></a>安装snap</h3><p><a target="_blank" rel="noopener" href="https://discourse.ubuntu.com/t/using-snapd-in-wsl2/12113">Using snapd in WSL2</a></p>
+<p><a target="_blank" rel="noopener" href="https://snapcraft.io/install/shfmt/ubuntu#install">Install shfmt on Ubuntu using the Snap Store | Snapcraft</a></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">sudo apt update</span><br><span class="line">sudo apt install snapd</span><br><span class="line">sudo apt-get update &amp;&amp; sudo apt-get install -yqq daemonize dbus-user-session fontconfig </span><br><span class="line"></span><br><span class="line">sudo daemonize /usr/bin/unshare --fork --pid --mount-proc /lib/systemd/systemd --system-unit=basic.target</span><br><span class="line"><span class="built_in">exec</span> sudo nsenter -t $(pidof systemd) -a su - <span class="variable">$LOGNAME</span></span><br><span class="line"></span><br><span class="line">$ snap version</span><br><span class="line">snap    2.51.3</span><br><span class="line">snapd   2.51.3</span><br><span class="line">series  16</span><br><span class="line">ubuntu  20.04</span><br><span class="line">kernel  5.10.16.3-microsoft-standard-WSL2</span><br><span class="line"></span><br><span class="line"><span class="comment"># 安装shfmt</span></span><br><span class="line">sudo snap install shfmt</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h2 id="FAQ"><a href="#FAQ" class="headerlink" title="FAQ"></a>FAQ</h2><h3 id="clipboard-error-invoking-win32yank-exe"><a href="#clipboard-error-invoking-win32yank-exe" class="headerlink" title="clipboard: error invoking win32yank.exe"></a>clipboard: error invoking win32yank.exe</h3><p>Windows缺少运行库导致的(网上有很多)</p>
+<h3 id="chrome-解锁10080端口"><a href="#chrome-解锁10080端口" class="headerlink" title="chrome 解锁10080端口"></a>chrome 解锁10080端口</h3><p>右键——属性——目标<br><code>“C:\Program Files (x86)\Google\Chrome\Application\chrome.exe” –explicitly-allowed-ports=10080</code></p>
+<h3 id="wsl占用内存"><a href="#wsl占用内存" class="headerlink" title="wsl占用内存"></a>wsl占用内存</h3><p>原文出自: <a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/345645621">https://zhuanlan.zhihu.com/p/345645621</a></p>
+<p>新建文件.wslconfig <code>C:\Users\xxx\.wslconfig</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[wsl2]</span><br><span class="line">processors=8</span><br><span class="line">memory=8GB</span><br><span class="line">swap=8GB</span><br><span class="line">localhostForwarding=<span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-1"><a class="top-box-link" href="#WSL2"><span class="top-box-text">WSL2</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#Windows10"><span class="top-box-text">Windows10</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%AE%89%E8%A3%85wsl2"><span class="top-box-text">安装wsl2</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%B8%B8%E7%94%A8%E8%BD%AF%E4%BB%B6"><span class="top-box-text">常用软件</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#Ubuntu-20-04"><span class="top-box-text">Ubuntu 20.04</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%AE%89%E8%A3%85snap"><span class="top-box-text">安装snap</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#FAQ"><span class="top-box-text">FAQ</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#clipboard-error-invoking-win32yank-exe"><span class="top-box-text">clipboard: error invoking win32yank.exe</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#chrome-%E8%A7%A3%E9%94%8110080%E7%AB%AF%E5%8F%A3"><span class="top-box-text">chrome 解锁10080端口</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#wsl%E5%8D%A0%E7%94%A8%E5%86%85%E5%AD%98"><span class="top-box-text">wsl占用内存</span></a></li></ol></li></ol></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2022/01/21/%E6%9E%84%E5%BB%BAkolla-images/">
+          <h3 class="post-title">
+            
+            下一篇：kolla镜像构建
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+
