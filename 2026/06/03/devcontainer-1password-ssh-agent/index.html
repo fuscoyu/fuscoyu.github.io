@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>Dev Container 中使用 1Password SSH Agent</title>
+<meta name="keywords" content="Dev Container 中使用 1Password SSH Agent, fuscoyu&#39;s Blog">
+<meta name="description" content="Dev Container 中使用 1Password SSH Agent
+本文由 Codex 根据一次真实的 Dev Container 排障过程整理生成。
+
+最近在本地用 Dev Container 跑项目时，遇到一个看起来很绕的问题：">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="Dev Container 中使用 1Password SSH Agent">
+<meta property="og:description" content="Dev Container 中使用 1Password SSH Agent
+本文由 Codex 根据一次真实的 Dev Container 排障过程整理生成。
+
+最近在本地用 Dev Container 跑项目时，遇到一个看起来很绕的问题：">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">Dev Container 中使用 1Password SSH Agent</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-06-04</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Dev-Container/">
+              Dev Container
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/1Password/">
+              1Password
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/SSH/">
+              SSH
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Colima/">
+              Colima
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <h1 id="Dev-Container-中使用-1Password-SSH-Agent"><a href="#Dev-Container-中使用-1Password-SSH-Agent" class="headerlink" title="Dev Container 中使用 1Password SSH Agent"></a>Dev Container 中使用 1Password SSH Agent</h1><blockquote>
+<p>本文由 Codex 根据一次真实的 Dev Container 排障过程整理生成。</p>
+</blockquote>
+<p>最近在本地用 Dev Container 跑项目时，遇到一个看起来很绕的问题：宿主机已经启用了 1Password SSH Agent，容器里也能看到 <code>SSH_AUTH_SOCK</code>，但 <code>ssh-add -l</code> 仍然失败。</p>
+<p>这篇记录一下问题现象、背后的原理，以及一套比较稳的修复方法。</p>
+<h2 id="问题现象"><a href="#问题现象" class="headerlink" title="问题现象"></a>问题现象</h2><p>最开始 Dev Container 启动时出现过这样的错误：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Container server: Remote to local stream terminated with error: &#123;</span><br><span class="line">  message: &#x27;connect ENOENT ~/Library/Group\\ Containers/2BUA8C4S2C.com.1password/t/agent.sock&#x27;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>修了一轮之后，容器里已经能看到 VS Code &#x2F; Dev Containers 转发出来的 socket：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">root@container:/data/autotest<span class="comment"># echo &quot;$SSH_AUTH_SOCK&quot;</span></span><br><span class="line">/tmp/vscode-ssh-auth-395058ed-3daa-4a0f-b9b8-4c196531f750.sock</span><br></pre></td></tr></table></figure>
+
+<p>但是继续执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ssh-add -l</span><br></pre></td></tr></table></figure>
+
+<p>却得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">error fetching identities: communication with agent failed</span><br></pre></td></tr></table></figure>
+
+<p>这说明问题已经不是“容器里没有 socket”，而是“容器内的转发 socket 连回宿主机 agent 时失败”。</p>
+<h2 id="原理：Dev-Container-不是直接使用-macOS-的-agent-sock"><a href="#原理：Dev-Container-不是直接使用-macOS-的-agent-sock" class="headerlink" title="原理：Dev Container 不是直接使用 macOS 的 agent.sock"></a>原理：Dev Container 不是直接使用 macOS 的 agent.sock</h2><p>在 macOS 上，1Password SSH Agent 的真实 socket 一般在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock</span><br></pre></td></tr></table></figure>
+
+<p>但是 Linux 容器不能直接理解这个 macOS 路径。尤其路径里还有空格，很多工具链里如果写成 <code>~/Library/Group\ Containers/...</code>，<code>~</code> 并不会被展开成 <code>/Users/xxx</code>。</p>
+<p>Dev Containers 的正常做法不是把这个 macOS socket 原样挂进容器，而是：</p>
+<ol>
+<li>VS Code &#x2F; Dev Containers 在宿主机读取 <code>SSH_AUTH_SOCK</code>。</li>
+<li>它在容器里创建一个临时 socket，例如 <code>/tmp/vscode-ssh-auth-xxxx.sock</code>。</li>
+<li>容器里的 SSH 客户端连接这个临时 socket。</li>
+<li>Dev Containers 再把请求转发回宿主机的真实 SSH Agent。</li>
+<li>1Password 弹窗授权或返回 key 列表。</li>
+</ol>
+<p>所以容器里看到的路径应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/tmp/vscode-ssh-auth-xxxx.sock</span><br></pre></td></tr></table></figure>
+
+<p>而不应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/Users/xxx/Library/Group Containers/...</span><br></pre></td></tr></table></figure>
+
+<p>也不应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">~/Library/Group Containers/...</span><br></pre></td></tr></table></figure>
+
+<p>如果容器里已经出现 <code>/tmp/vscode-ssh-auth-xxxx.sock</code>，说明 Dev Containers 的转发层已经建起来了。此时 <code>communication with agent failed</code> 往往表示 VS Code &#x2F; Dev Containers 进程拿到的宿主机 <code>SSH_AUTH_SOCK</code> 是错的、旧的，或者对应的 1Password agent 当前不可用。</p>
+<h2 id="修复方法"><a href="#修复方法" class="headerlink" title="修复方法"></a>修复方法</h2><h3 id="1-在宿主机创建一个稳定的短路径"><a href="#1-在宿主机创建一个稳定的短路径" class="headerlink" title="1. 在宿主机创建一个稳定的短路径"></a>1. 在宿主机创建一个稳定的短路径</h3><p>1Password 的原始路径包含空格，不适合到处配置。建议在宿主机建立一个稳定软链接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p <span class="string">&quot;<span class="variable">$HOME</span>/.1password&quot;</span></span><br><span class="line"><span class="built_in">ln</span> -sf <span class="string">&quot;<span class="variable">$HOME</span>/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock&quot;</span> <span class="string">&quot;<span class="variable">$HOME</span>/.1password/agent.sock&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>这样之后统一使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/Users/&lt;username&gt;/.1password/agent.sock</span><br></pre></td></tr></table></figure>
+
+<p>路径更短，也没有空格。</p>
+<h3 id="2-验证-1Password-Agent-本身可用"><a href="#2-验证-1Password-Agent-本身可用" class="headerlink" title="2. 验证 1Password Agent 本身可用"></a>2. 验证 1Password Agent 本身可用</h3><p>在 macOS 宿主机终端执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SSH_AUTH_SOCK=<span class="string">&quot;<span class="variable">$HOME</span>/.1password/agent.sock&quot;</span> ssh-add -l</span><br></pre></td></tr></table></figure>
+
+<p>如果这里失败，说明还没到 Dev Container 层，应该先检查 1Password：</p>
+<ul>
+<li>打开 1Password。</li>
+<li>进入 <code>Settings -&gt; Developer</code>。</li>
+<li>确认 <code>Use the SSH Agent</code> 已开启。</li>
+<li>确认对应 SSH key 已经加入 1Password。</li>
+</ul>
+<p>宿主机这一步必须先成功。</p>
+<h3 id="3-配置-SSH-AUTH-SOCK"><a href="#3-配置-SSH-AUTH-SOCK" class="headerlink" title="3. 配置 SSH_AUTH_SOCK"></a>3. 配置 SSH_AUTH_SOCK</h3><p>如果平时从终端启动 VS Code &#x2F; Codex，最自然的做法是在 <code>~/.zshrc</code> 里配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;export SSH_AUTH_SOCK=&quot;$HOME/.1password/agent.sock&quot;&#x27;</span> &gt;&gt; <span class="string">&quot;<span class="variable">$HOME</span>/.zshrc&quot;</span></span><br><span class="line"><span class="built_in">source</span> <span class="string">&quot;<span class="variable">$HOME</span>/.zshrc&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>然后验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$SSH_AUTH_SOCK</span>&quot;</span></span><br><span class="line">ssh-add -l</span><br></pre></td></tr></table></figure>
+
+<p>如果你是从 Dock、Finder、Spotlight 这类 GUI 入口启动 VS Code &#x2F; Codex，需要额外注意：GUI App 不一定继承当前终端里的环境变量。即使你在 shell 里配置了 <code>export SSH_AUTH_SOCK=...</code>，GUI 进程也可能拿不到。</p>
+<p>这时可以把变量写入 macOS 的 launchd 环境：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">launchctl unsetenv SSH_AUTH_SOCK</span><br><span class="line">launchctl setenv SSH_AUTH_SOCK <span class="string">&quot;<span class="variable">$HOME</span>/.1password/agent.sock&quot;</span></span><br><span class="line">launchctl getenv SSH_AUTH_SOCK</span><br></pre></td></tr></table></figure>
+
+<p>最后一行应该输出类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/Users/baymax/.1password/agent.sock</span><br></pre></td></tr></table></figure>
+
+<p>注意，输出里不能有 <code>~</code>。</p>
+<p>如果你始终从终端启动，比如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">code .</span><br></pre></td></tr></table></figure>
+
+<p>或者从终端启动 Codex，那么只配置 <code>~/.zshrc</code> 通常就够了。</p>
+<h3 id="4-重启-VS-Code-x2F-Codex"><a href="#4-重启-VS-Code-x2F-Codex" class="headerlink" title="4. 重启 VS Code &#x2F; Codex"></a>4. 重启 VS Code &#x2F; Codex</h3><p>这一步很关键。</p>
+<p>如果 VS Code &#x2F; Codex 已经启动，它已经读到了旧环境变量。即使你后来 <code>launchctl setenv</code>，当前进程也不会自动更新。</p>
+<p>所以需要：</p>
+<ol>
+<li>完整退出 VS Code &#x2F; Codex。</li>
+<li>重新打开项目。</li>
+<li>Rebuild &#x2F; Reopen Dev Container。</li>
+</ol>
+<h3 id="5-容器内验证"><a href="#5-容器内验证" class="headerlink" title="5. 容器内验证"></a>5. 容器内验证</h3><p>进入容器后执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$SSH_AUTH_SOCK</span>&quot;</span></span><br><span class="line"><span class="built_in">ls</span> -l <span class="string">&quot;<span class="variable">$SSH_AUTH_SOCK</span>&quot;</span></span><br><span class="line">ssh-add -l</span><br></pre></td></tr></table></figure>
+
+<p>正常情况下，第一条命令应该输出类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/tmp/vscode-ssh-auth-xxxx.sock</span><br></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ssh-add -l</span><br></pre></td></tr></table></figure>
+
+<p>应该能列出 1Password 中的 SSH key，或者触发 1Password 授权。</p>
+<p>最后可以测试 GitHub：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ssh -T git@github.com</span><br></pre></td></tr></table></figure>
+
+<p>如果配置正确，会看到 GitHub 的 SSH 认证提示。</p>
+<h2 id="不建议在-devcontainer-json-里直接挂载-1Password-socket"><a href="#不建议在-devcontainer-json-里直接挂载-1Password-socket" class="headerlink" title="不建议在 devcontainer.json 里直接挂载 1Password socket"></a>不建议在 devcontainer.json 里直接挂载 1Password socket</h2><p>一种看似直接的做法是把宿主机的 1Password socket mount 到容器里：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;mounts&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="string">&quot;source=$&#123;localEnv:SSH_AUTH_SOCK&#125;,target=/ssh-agent,type=bind&quot;</span></span><br><span class="line">  <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;remoteEnv&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;SSH_AUTH_SOCK&quot;</span><span class="punctuation">:</span> <span class="string">&quot;/ssh-agent&quot;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>这在某些 Linux 宿主机上可行，但在 macOS + Docker Desktop &#x2F; Colima 这类环境里并不稳。</p>
+<p>原因是容器实际运行在 Linux VM 里，不是直接运行在 macOS 内核上。macOS 的 Unix socket 不一定能像普通文件一样被正确转发到 VM 再进入容器。路径里还有空格和 <code>~</code> 展开问题，排障成本会更高。</p>
+<p>更稳的方案是让 Dev Containers 自己做 SSH agent forwarding。也就是：</p>
+<ul>
+<li>宿主机 <code>SSH_AUTH_SOCK</code> 指向真实可用的 1Password agent。</li>
+<li>GUI App 从 launchd 环境拿到正确值。</li>
+<li>容器内使用 Dev Containers 自动生成的 <code>/tmp/vscode-ssh-auth-xxxx.sock</code>。</li>
+</ul>
+<h2 id="检查-x2F-ssh-x2F-config"><a href="#检查-x2F-ssh-x2F-config" class="headerlink" title="检查 ~&#x2F;.ssh&#x2F;config"></a>检查 ~&#x2F;.ssh&#x2F;config</h2><p>还有一个容易忽略的坑：<code>~/.ssh/config</code> 里的 <code>IdentityAgent</code>。</p>
+<p>如果你写了：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Host *</span><br><span class="line">  IdentityAgent &quot;~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock&quot;</span><br></pre></td></tr></table></figure>
+
+<p>容器内 SSH 客户端会尝试直接访问这个 macOS 路径。这个路径在容器里不存在，也不会自动展开。</p>
+<p>推荐改成：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Host *</span><br><span class="line">  IdentityAgent SSH_AUTH_SOCK</span><br></pre></td></tr></table></figure>
+
+<p>或者干脆去掉 <code>IdentityAgent</code>，让 SSH 使用环境变量里的 <code>SSH_AUTH_SOCK</code>。</p>
+<p>如果只想对 GitHub 使用 1Password agent，可以写得更收敛：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Host github.com</span><br><span class="line">  HostName github.com</span><br><span class="line">  User git</span><br><span class="line">  IdentityAgent SSH_AUTH_SOCK</span><br></pre></td></tr></table></figure>
+
+<h2 id="最终检查清单"><a href="#最终检查清单" class="headerlink" title="最终检查清单"></a>最终检查清单</h2><p>宿主机：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">test</span> -S <span class="string">&quot;<span class="variable">$HOME</span>/.1password/agent.sock&quot;</span></span><br><span class="line">SSH_AUTH_SOCK=<span class="string">&quot;<span class="variable">$HOME</span>/.1password/agent.sock&quot;</span> ssh-add -l</span><br><span class="line">launchctl getenv SSH_AUTH_SOCK</span><br></pre></td></tr></table></figure>
+
+<p>容器内：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$SSH_AUTH_SOCK</span>&quot;</span></span><br><span class="line"><span class="built_in">test</span> -S <span class="string">&quot;<span class="variable">$SSH_AUTH_SOCK</span>&quot;</span></span><br><span class="line">ssh-add -l</span><br><span class="line">ssh -T git@github.com</span><br></pre></td></tr></table></figure>
+
+<p>预期结果：</p>
+<ul>
+<li>宿主机 <code>SSH_AUTH_SOCK</code> 是绝对路径。</li>
+<li>容器内 <code>SSH_AUTH_SOCK</code> 是 <code>/tmp/vscode-ssh-auth-xxxx.sock</code>。</li>
+<li><code>ssh-add -l</code> 能列出 1Password 管理的 key。</li>
+<li><code>ssh -T git@github.com</code> 能触发或通过 SSH 认证。</li>
+</ul>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>这个问题的关键判断点是：</p>
+<ul>
+<li><code>ENOENT ~/Library/.../agent.sock</code>：宿主机 agent 路径没有被正确展开。</li>
+<li>容器里没有 <code>SSH_AUTH_SOCK</code>：Dev Containers 没有建立 SSH agent forwarding。</li>
+<li>容器里有 <code>/tmp/vscode-ssh-auth-xxxx.sock</code>，但 <code>communication with agent failed</code>：转发层存在，但 VS Code &#x2F; Codex 背后的宿主机 agent 不可用或路径仍是旧值。</li>
+</ul>
+<p>最终不要把 macOS 的 1Password socket 当成普通文件直接塞进容器。让宿主机提供一个稳定、绝对、无空格的 <code>SSH_AUTH_SOCK</code>，再让 Dev Containers 负责转发，才是更省心的方式。✨</p>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-1"><a class="top-box-link" href="#Dev-Container-%E4%B8%AD%E4%BD%BF%E7%94%A8-1Password-SSH-Agent"><span class="top-box-text">Dev Container 中使用 1Password SSH Agent</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%97%AE%E9%A2%98%E7%8E%B0%E8%B1%A1"><span class="top-box-text">问题现象</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8E%9F%E7%90%86%EF%BC%9ADev-Container-%E4%B8%8D%E6%98%AF%E7%9B%B4%E6%8E%A5%E4%BD%BF%E7%94%A8-macOS-%E7%9A%84-agent-sock"><span class="top-box-text">原理：Dev Container 不是直接使用 macOS 的 agent.sock</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BF%AE%E5%A4%8D%E6%96%B9%E6%B3%95"><span class="top-box-text">修复方法</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-%E5%9C%A8%E5%AE%BF%E4%B8%BB%E6%9C%BA%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%A8%B3%E5%AE%9A%E7%9A%84%E7%9F%AD%E8%B7%AF%E5%BE%84"><span class="top-box-text">1. 在宿主机创建一个稳定的短路径</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-%E9%AA%8C%E8%AF%81-1Password-Agent-%E6%9C%AC%E8%BA%AB%E5%8F%AF%E7%94%A8"><span class="top-box-text">2. 验证 1Password Agent 本身可用</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-%E9%85%8D%E7%BD%AE-SSH-AUTH-SOCK"><span class="top-box-text">3. 配置 SSH_AUTH_SOCK</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#4-%E9%87%8D%E5%90%AF-VS-Code-x2F-Codex"><span class="top-box-text">4. 重启 VS Code &#x2F; Codex</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#5-%E5%AE%B9%E5%99%A8%E5%86%85%E9%AA%8C%E8%AF%81"><span class="top-box-text">5. 容器内验证</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%8D%E5%BB%BA%E8%AE%AE%E5%9C%A8-devcontainer-json-%E9%87%8C%E7%9B%B4%E6%8E%A5%E6%8C%82%E8%BD%BD-1Password-socket"><span class="top-box-text">不建议在 devcontainer.json 里直接挂载 1Password socket</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%A3%80%E6%9F%A5-x2F-ssh-x2F-config"><span class="top-box-text">检查 ~&#x2F;.ssh&#x2F;config</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%9C%80%E7%BB%88%E6%A3%80%E6%9F%A5%E6%B8%85%E5%8D%95"><span class="top-box-text">最终检查清单</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%B0%8F%E7%BB%93"><span class="top-box-text">小结</span></a></li></ol></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/05/30/Codex-App-%E8%BF%9E%E6%8E%A5-Mac-mini-%E8%BF%9C%E7%A8%8B%E6%8E%A7%E5%88%B6%E5%A4%B1%E8%B4%A5%E6%8E%92%E6%9F%A5/">
+          <h3 class="post-title">
+            
+            下一篇：Codex App 连接 Mac mini 报 Failed to update connection 的一次排查记录
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+
