@@ -1,6 +1,548 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>每天学习一个命令: iptables 测试篇</title>
+    <url>/2026/06/06/iptables-%E6%B5%8B%E8%AF%95%E7%AF%87/</url>
+    <content><![CDATA[<h1 id="iptables-测试篇"><a href="#iptables-测试篇" class="headerlink" title="iptables 测试篇"></a>iptables 测试篇</h1><blockquote>
+<p>本文由 Codex 辅助生成，用来测试自己是否掌握 iptables 基础命令。</p>
+</blockquote>
+<p>上一篇整理了 iptables 的基础概念和常用命令。这一篇换个方式：不继续讲概念，而是通过题目检查自己是否真的会用。</p>
+<p>建议先不要看答案，自己在纸上或测试机器里写一遍命令，再对照参考答案。</p>
+<blockquote>
+<p>注意：不要直接在生产机器或远程服务器上随便执行 <code>DROP</code>、<code>-F</code>、<code>-P INPUT DROP</code> 这类命令，容易把自己锁在外面。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、基础概念题"><a href="#一、基础概念题" class="headerlink" title="一、基础概念题"></a>一、基础概念题</h2><h3 id="1-iptables-和-netfilter-分别是什么？"><a href="#1-iptables-和-netfilter-分别是什么？" class="headerlink" title="1. iptables 和 netfilter 分别是什么？"></a>1. iptables 和 netfilter 分别是什么？</h3><p>要求：用自己的话说明谁在用户态，谁在内核态。</p>
+<h3 id="2-下面三类流量分别主要看哪条链？"><a href="#2-下面三类流量分别主要看哪条链？" class="headerlink" title="2. 下面三类流量分别主要看哪条链？"></a>2. 下面三类流量分别主要看哪条链？</h3><ol>
+<li>别人访问本机服务</li>
+<li>本机主动访问外部服务</li>
+<li>Linux 机器作为网关转发流量</li>
+</ol>
+<h3 id="3-filter-表主要用来做什么？"><a href="#3-filter-表主要用来做什么？" class="headerlink" title="3. filter 表主要用来做什么？"></a>3. <code>filter</code> 表主要用来做什么？</h3><p>要求：说出它和 <code>nat</code> 表的区别。</p>
+<h3 id="4-iptables-规则为什么要注意顺序？"><a href="#4-iptables-规则为什么要注意顺序？" class="headerlink" title="4. iptables 规则为什么要注意顺序？"></a>4. iptables 规则为什么要注意顺序？</h3><p>要求：说明规则从上往下匹配的影响。</p>
+<h3 id="5-DROP-和-REJECT-有什么区别？"><a href="#5-DROP-和-REJECT-有什么区别？" class="headerlink" title="5. DROP 和 REJECT 有什么区别？"></a>5. <code>DROP</code> 和 <code>REJECT</code> 有什么区别？</h3><p>要求：说明对方是否会收到响应。</p>
+<h2 id="二、命令填空题"><a href="#二、命令填空题" class="headerlink" title="二、命令填空题"></a>二、命令填空题</h2><h3 id="6-查看-filter-表-INPUT-链规则，并显示规则编号"><a href="#6-查看-filter-表-INPUT-链规则，并显示规则编号" class="headerlink" title="6. 查看 filter 表 INPUT 链规则，并显示规则编号"></a>6. 查看 <code>filter</code> 表 <code>INPUT</code> 链规则，并显示规则编号</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter ___ INPUT -n -v ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-丢弃访问本机-TCP-80-端口的数据包"><a href="#7-丢弃访问本机-TCP-80-端口的数据包" class="headerlink" title="7. 丢弃访问本机 TCP 80 端口的数据包"></a>7. 丢弃访问本机 TCP 80 端口的数据包</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -A ___ -p tcp ___ 80 -j ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-允许访问本机-UDP-53-端口"><a href="#8-允许访问本机-UDP-53-端口" class="headerlink" title="8. 允许访问本机 UDP 53 端口"></a>8. 允许访问本机 UDP 53 端口</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p ___ --dport ___ -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-把-INPUT-链默认策略设置为丢弃"><a href="#9-把-INPUT-链默认策略设置为丢弃" class="headerlink" title="9. 把 INPUT 链默认策略设置为丢弃"></a>9. 把 <code>INPUT</code> 链默认策略设置为丢弃</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables ___ INPUT ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="10-删除-INPUT-链第-8-条规则"><a href="#10-删除-INPUT-链第-8-条规则" class="headerlink" title="10. 删除 INPUT 链第 8 条规则"></a>10. 删除 <code>INPUT</code> 链第 8 条规则</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter ___ INPUT ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="11-在-INPUT-链第-4-条规则前插入一条允许-UDP-54-的规则"><a href="#11-在-INPUT-链第-4-条规则前插入一条允许-UDP-54-的规则" class="headerlink" title="11. 在 INPUT 链第 4 条规则前插入一条允许 UDP 54 的规则"></a>11. 在 <code>INPUT</code> 链第 4 条规则前插入一条允许 UDP 54 的规则</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter ___ INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="12-放行已有连接和相关连接的回包"><a href="#12-放行已有连接和相关连接的回包" class="headerlink" title="12. 放行已有连接和相关连接的回包"></a>12. 放行已有连接和相关连接的回包</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack ___ ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h2 id="三、判断题"><a href="#三、判断题" class="headerlink" title="三、判断题"></a>三、判断题</h2><h3 id="13-不写-t-参数时，iptables-默认操作-filter-表。"><a href="#13-不写-t-参数时，iptables-默认操作-filter-表。" class="headerlink" title="13. 不写 -t 参数时，iptables 默认操作 filter 表。"></a>13. 不写 <code>-t</code> 参数时，iptables 默认操作 <code>filter</code> 表。</h3><p>对 &#x2F; 错？</p>
+<h3 id="14-A-INPUT-4-表示把规则插入到-INPUT-链第-4-条前面。"><a href="#14-A-INPUT-4-表示把规则插入到-INPUT-链第-4-条前面。" class="headerlink" title="14. -A INPUT 4 表示把规则插入到 INPUT 链第 4 条前面。"></a>14. <code>-A INPUT 4</code> 表示把规则插入到 <code>INPUT</code> 链第 4 条前面。</h3><p>对 &#x2F; 错？</p>
+<h3 id="15-P-INPUT-DROP-设置的是-INPUT-链的默认策略，它会排在所有规则之前优先匹配。"><a href="#15-P-INPUT-DROP-设置的是-INPUT-链的默认策略，它会排在所有规则之前优先匹配。" class="headerlink" title="15. -P INPUT DROP 设置的是 INPUT 链的默认策略，它会排在所有规则之前优先匹配。"></a>15. <code>-P INPUT DROP</code> 设置的是 <code>INPUT</code> 链的默认策略，它会排在所有规则之前优先匹配。</h3><p>对 &#x2F; 错？</p>
+<h3 id="16-本机主动访问外部服务时，外部返回的数据包可能会进入-INPUT-链。"><a href="#16-本机主动访问外部服务时，外部返回的数据包可能会进入-INPUT-链。" class="headerlink" title="16. 本机主动访问外部服务时，外部返回的数据包可能会进入 INPUT 链。"></a>16. 本机主动访问外部服务时，外部返回的数据包可能会进入 <code>INPUT</code> 链。</h3><p>对 &#x2F; 错？</p>
+<h3 id="17-LOG-动作会记录日志，然后继续匹配后续规则。"><a href="#17-LOG-动作会记录日志，然后继续匹配后续规则。" class="headerlink" title="17. LOG 动作会记录日志，然后继续匹配后续规则。"></a>17. <code>LOG</code> 动作会记录日志，然后继续匹配后续规则。</h3><p>对 &#x2F; 错？</p>
+<h2 id="四、场景题"><a href="#四、场景题" class="headerlink" title="四、场景题"></a>四、场景题</h2><h3 id="18-默认拒绝全部入站，只允许-UDP-53"><a href="#18-默认拒绝全部入站，只允许-UDP-53" class="headerlink" title="18. 默认拒绝全部入站，只允许 UDP 53"></a>18. 默认拒绝全部入站，只允许 UDP 53</h3><p>要求：写出完整命令。至少包含：</p>
+<ul>
+<li>放行已有连接回包</li>
+<li>放行本机回环接口</li>
+<li>放行 UDP 53</li>
+<li>设置 <code>INPUT</code> 默认策略为 <code>DROP</code></li>
+</ul>
+<h3 id="19-只临时阻断别人访问本机-8080-端口"><a href="#19-只临时阻断别人访问本机-8080-端口" class="headerlink" title="19. 只临时阻断别人访问本机 8080 端口"></a>19. 只临时阻断别人访问本机 8080 端口</h3><p>要求：写一条规则，不修改默认策略。</p>
+<h3 id="20-查看规则时发现不知道该删除哪条，应该先执行什么命令？"><a href="#20-查看规则时发现不知道该删除哪条，应该先执行什么命令？" class="headerlink" title="20. 查看规则时发现不知道该删除哪条，应该先执行什么命令？"></a>20. 查看规则时发现不知道该删除哪条，应该先执行什么命令？</h3><p>要求：显示规则编号，避免删错。</p>
+<h3 id="21-想允许-SSH-连接后再设置默认拒绝入站，应该先做什么？"><a href="#21-想允许-SSH-连接后再设置默认拒绝入站，应该先做什么？" class="headerlink" title="21. 想允许 SSH 连接后再设置默认拒绝入站，应该先做什么？"></a>21. 想允许 SSH 连接后再设置默认拒绝入站，应该先做什么？</h3><p>要求：写出放行 SSH 22 端口的命令，并说明为什么要先做。</p>
+<h3 id="22-想清空-INPUT-链所有规则，命令怎么写？"><a href="#22-想清空-INPUT-链所有规则，命令怎么写？" class="headerlink" title="22. 想清空 INPUT 链所有规则，命令怎么写？"></a>22. 想清空 <code>INPUT</code> 链所有规则，命令怎么写？</h3><p>要求：只清空 <code>INPUT</code> 链，不清空所有链。</p>
+<h3 id="23-想看当前所有-iptables-规则，适合备份或排障，应该用什么命令？"><a href="#23-想看当前所有-iptables-规则，适合备份或排障，应该用什么命令？" class="headerlink" title="23. 想看当前所有 iptables 规则，适合备份或排障，应该用什么命令？"></a>23. 想看当前所有 iptables 规则，适合备份或排障，应该用什么命令？</h3><p>要求：写出命令。</p>
+<h2 id="五、排错题"><a href="#五、排错题" class="headerlink" title="五、排错题"></a>五、排错题</h2><h3 id="24-下面命令有什么问题？"><a href="#24-下面命令有什么问题？" class="headerlink" title="24. 下面命令有什么问题？"></a>24. 下面命令有什么问题？</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p tcp -dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="25-下面命令有什么问题？"><a href="#25-下面命令有什么问题？" class="headerlink" title="25. 下面命令有什么问题？"></a>25. 下面命令有什么问题？</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -P INPUT -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="26-下面命令有什么问题？"><a href="#26-下面命令有什么问题？" class="headerlink" title="26. 下面命令有什么问题？"></a>26. 下面命令有什么问题？</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -A INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="27-下面命令有什么风险？"><a href="#27-下面命令有什么风险？" class="headerlink" title="27. 下面命令有什么风险？"></a>27. 下面命令有什么风险？</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h2 id="参考答案"><a href="#参考答案" class="headerlink" title="参考答案"></a>参考答案</h2><h3 id="1-iptables-和-netfilter"><a href="#1-iptables-和-netfilter" class="headerlink" title="1. iptables 和 netfilter"></a>1. iptables 和 netfilter</h3><p>iptables 是用户态命令行工具，用来写规则；netfilter 是 Linux 内核里的包处理框架，真正根据规则处理数据包。</p>
+<h3 id="2-三类流量对应链"><a href="#2-三类流量对应链" class="headerlink" title="2. 三类流量对应链"></a>2. 三类流量对应链</h3><ol>
+<li>别人访问本机服务：<code>INPUT</code></li>
+<li>本机主动访问外部服务：<code>OUTPUT</code></li>
+<li>Linux 机器作为网关转发流量：<code>FORWARD</code></li>
+</ol>
+<h3 id="3-filter-表和-nat-表"><a href="#3-filter-表和-nat-表" class="headerlink" title="3. filter 表和 nat 表"></a>3. filter 表和 nat 表</h3><p><code>filter</code> 表主要做过滤，决定包能不能通过；<code>nat</code> 表主要做地址转换，比如 DNAT、SNAT、MASQUERADE。</p>
+<h3 id="4-规则顺序"><a href="#4-规则顺序" class="headerlink" title="4. 规则顺序"></a>4. 规则顺序</h3><p>iptables 在同一条链里从上往下匹配规则。前面的规则先命中，后面的规则可能就没有机会执行。</p>
+<h3 id="5-DROP-和-REJECT"><a href="#5-DROP-和-REJECT" class="headerlink" title="5. DROP 和 REJECT"></a>5. DROP 和 REJECT</h3><p><code>DROP</code> 是直接丢弃，不给对方响应；<code>REJECT</code> 是拒绝，并返回错误信息。</p>
+<h3 id="6-查看-INPUT-链规则编号"><a href="#6-查看-INPUT-链规则编号" class="headerlink" title="6. 查看 INPUT 链规则编号"></a>6. 查看 INPUT 链规则编号</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-丢弃-TCP-80"><a href="#7-丢弃-TCP-80" class="headerlink" title="7. 丢弃 TCP 80"></a>7. 丢弃 TCP 80</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-允许-UDP-53"><a href="#8-允许-UDP-53" class="headerlink" title="8. 允许 UDP 53"></a>8. 允许 UDP 53</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p udp --dport 53 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-设置-INPUT-默认策略"><a href="#9-设置-INPUT-默认策略" class="headerlink" title="9. 设置 INPUT 默认策略"></a>9. 设置 INPUT 默认策略</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="10-删除-INPUT-第-8-条规则"><a href="#10-删除-INPUT-第-8-条规则" class="headerlink" title="10. 删除 INPUT 第 8 条规则"></a>10. 删除 INPUT 第 8 条规则</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -D INPUT 8</span><br></pre></td></tr></table></figure>
+
+<h3 id="11-插入-UDP-54-规则"><a href="#11-插入-UDP-54-规则" class="headerlink" title="11. 插入 UDP 54 规则"></a>11. 插入 UDP 54 规则</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -I INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="12-放行已有连接回包"><a href="#12-放行已有连接回包" class="headerlink" title="12. 放行已有连接回包"></a>12. 放行已有连接回包</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="13-默认表"><a href="#13-默认表" class="headerlink" title="13. 默认表"></a>13. 默认表</h3><p>对。不写 <code>-t</code> 时默认操作 <code>filter</code> 表。</p>
+<h3 id="14-插入规则"><a href="#14-插入规则" class="headerlink" title="14. 插入规则"></a>14. 插入规则</h3><p>错。插入规则要用 <code>-I INPUT 4</code>，不是 <code>-A INPUT 4</code>。</p>
+<h3 id="15-默认策略优先级"><a href="#15-默认策略优先级" class="headerlink" title="15. 默认策略优先级"></a>15. 默认策略优先级</h3><p>错。默认策略是在链里没有任何规则匹配时才执行，可以理解为优先级最低。</p>
+<h3 id="16-出站请求的回包"><a href="#16-出站请求的回包" class="headerlink" title="16. 出站请求的回包"></a>16. 出站请求的回包</h3><p>对。本机请求从 <code>OUTPUT</code> 出去，对方返回的数据包会进入本机，所以可能经过 <code>INPUT</code> 链。</p>
+<h3 id="17-LOG-动作"><a href="#17-LOG-动作" class="headerlink" title="17. LOG 动作"></a>17. LOG 动作</h3><p>对。<code>LOG</code> 只记录日志，不会直接放行或丢弃，后续通常还要接 <code>ACCEPT</code> 或 <code>DROP</code> 规则。</p>
+<h3 id="18-默认拒绝入站，只允许-UDP-53"><a href="#18-默认拒绝入站，只允许-UDP-53" class="headerlink" title="18. 默认拒绝入站，只允许 UDP 53"></a>18. 默认拒绝入站，只允许 UDP 53</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br><span class="line">iptables -A INPUT -i lo -j ACCEPT</span><br><span class="line">iptables -A INPUT -p udp --dport 53 -j ACCEPT</span><br><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="19-阻断-TCP-8080"><a href="#19-阻断-TCP-8080" class="headerlink" title="19. 阻断 TCP 8080"></a>19. 阻断 TCP 8080</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 8080 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="20-删除前查看编号"><a href="#20-删除前查看编号" class="headerlink" title="20. 删除前查看编号"></a>20. 删除前查看编号</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<h3 id="21-先放行-SSH"><a href="#21-先放行-SSH" class="headerlink" title="21. 先放行 SSH"></a>21. 先放行 SSH</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 22 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>如果是远程操作，先放行 SSH 再设置 <code>INPUT DROP</code>，否则可能把自己的 SSH 连接阻断。</p>
+<h3 id="22-清空-INPUT-链"><a href="#22-清空-INPUT-链" class="headerlink" title="22. 清空 INPUT 链"></a>22. 清空 INPUT 链</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -F INPUT</span><br></pre></td></tr></table></figure>
+
+<p>如果要指定表，也可以写：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -F INPUT</span><br></pre></td></tr></table></figure>
+
+<h3 id="23-查看完整规则"><a href="#23-查看完整规则" class="headerlink" title="23. 查看完整规则"></a>23. 查看完整规则</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables-save</span><br></pre></td></tr></table></figure>
+
+<h3 id="24-dport-问题"><a href="#24-dport-问题" class="headerlink" title="24. -dport 问题"></a>24. <code>-dport</code> 问题</h3><p><code>dport</code> 前面少了一个 <code>-</code>，应该写成 <code>--dport</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="25-默认策略命令问题"><a href="#25-默认策略命令问题" class="headerlink" title="25. 默认策略命令问题"></a>25. 默认策略命令问题</h3><p><code>-P</code> 后面直接跟链名和策略，不需要 <code>-j</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="26-插入规则命令问题"><a href="#26-插入规则命令问题" class="headerlink" title="26. 插入规则命令问题"></a>26. 插入规则命令问题</h3><p><code>-A</code> 是追加到末尾，不能指定插入位置。要插入到第 4 条前面，应该用 <code>-I</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -I INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="27-设置默认-DROP-的风险"><a href="#27-设置默认-DROP-的风险" class="headerlink" title="27. 设置默认 DROP 的风险"></a>27. 设置默认 DROP 的风险</h3><p>如果远程机器没有先放行 SSH、已有连接、本机回环等流量，直接执行 <code>iptables -P INPUT DROP</code> 可能导致 SSH 断开，自己连不回去。</p>
+<h2 id="自测评分"><a href="#自测评分" class="headerlink" title="自测评分"></a>自测评分</h2><ul>
+<li>0-10 题：还需要回去重看基础概念。</li>
+<li>11-20 题：已经知道常用命令，但需要多练习场景题。</li>
+<li>21-27 题：基础命令基本掌握，可以继续学习 NAT、端口转发和持久化规则。</li>
+</ul>
+<p>如果能不看答案写出第 18 题和第 21 题，说明你已经掌握 iptables 入门阶段最容易踩坑的部分。</p>
+]]></content>
+      <categories>
+        <category>网络</category>
+      </categories>
+      <tags>
+        <tag>Network</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>每天学习一个命令: iptables</title>
+    <url>/2026/06/06/iptables/</url>
+    <content><![CDATA[<h1 id="iptables"><a href="#iptables" class="headerlink" title="iptables"></a>iptables</h1><blockquote>
+<p>本文由 Codex 辅助生成，内容整理自 B 站「米拉一老王」的 iptables 学习资料。</p>
+</blockquote>
+<h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>iptables 常被直接叫做 Linux 防火墙，但更准确一点说，它是一个用户态命令行工具，用来给 Linux 内核里的 netfilter 写规则。</p>
+<p>netfilter 才是真正工作在内核里的包处理框架。数据包进入协议栈后，会在几个固定位置经过 netfilter 的 hook 点；iptables 把规则挂到这些 hook 对应的链上，内核经过链时按顺序匹配规则，匹配到了就执行对应动作。</p>
+<p>写 iptables 规则时，可以先把需求翻译成下面这几个问题：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">需求是什么 -&gt; 要做什么动作 -&gt; 用哪张表 -&gt; 写到哪条链 -&gt; 补上匹配条件</span><br></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<ul>
+<li>需求：禁止别人访问本机 80 端口</li>
+<li>动作：丢弃数据包</li>
+<li>表：filter 表</li>
+<li>链：INPUT 链</li>
+<li>规则：匹配 TCP 目标端口 80，然后 DROP</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="先建立一个简单模型"><a href="#先建立一个简单模型" class="headerlink" title="先建立一个简单模型"></a>先建立一个简单模型</h2><p>刚开始学 iptables 时，不要先背命令，先记住一句话：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">数据包经过内核时，netfilter 在几个固定位置设置了检查点，iptables 用来给这些检查点写规则。</span><br></pre></td></tr></table></figure>
+
+<p>这些检查点就是常说的“链”。每条规则本质上都在回答三个问题：</p>
+<ol>
+<li>在哪里检查？也就是选哪条链。</li>
+<li>检查什么包？也就是写匹配条件。</li>
+<li>命中后怎么办？也就是选动作。</li>
+</ol>
+<h2 id="数据包会经过哪些链"><a href="#数据包会经过哪些链" class="headerlink" title="数据包会经过哪些链"></a>数据包会经过哪些链</h2><h3 id="入站和出站流量"><a href="#入站和出站流量" class="headerlink" title="入站和出站流量"></a>入站和出站流量</h3><p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/2026-06-05_13-55-22.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/2026-06-05_13-55-22.png"  alt="2026-06-05_13-55-22" lazyload></a></p>
+<p>这张图画了两种最常见的流量。</p>
+<p>第一种是别人访问本机，比如访问这台机器的 80 端口：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">数据包进入网卡 -&gt; PREROUTING -&gt; 路由判断目标是本机 -&gt; INPUT -&gt; 本机进程</span><br></pre></td></tr></table></figure>
+
+<p>第二种是本机主动访问外部服务，比如执行 <code>curl https://example.com</code>：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">本机进程 -&gt; OUTPUT -&gt; POSTROUTING -&gt; 数据包通过网卡发出</span><br></pre></td></tr></table></figure>
+
+<p>这里图里的 <code>localhost</code> 可以先理解为“本机上的进程或服务”，不必纠结它是不是 <code>127.0.0.1</code>。</p>
+<p>先记结论：</p>
+<ul>
+<li>别人访问本机：重点看 <code>INPUT</code></li>
+<li>本机主动访问别人：重点看 <code>OUTPUT</code></li>
+</ul>
+<h3 id="转发流量"><a href="#转发流量" class="headerlink" title="转发流量"></a>转发流量</h3><p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605135926.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605135926.png"  alt="20260605135926" lazyload></a></p>
+<p>这张图画的是 Linux 作为路由器或网关时的场景。</p>
+<p>如果数据包进入本机后，路由判断发现目标不是本机，而是需要从另一块网卡转发出去，就会走 <code>FORWARD</code> 链：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">数据包进入网卡 -&gt; PREROUTING -&gt; 路由判断目标不是本机 -&gt; FORWARD -&gt; POSTROUTING -&gt; 网卡发出</span><br></pre></td></tr></table></figure>
+
+<p><code>FORWARD</code> 链只处理经过本机转发的流量，不处理访问本机服务的流量。</p>
+<p>常见链可以这样记：</p>
+<table>
+<thead>
+<tr>
+<th>链</th>
+<th>初学者理解</th>
+<th>常见场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PREROUTING</td>
+<td>数据包刚进来，还没决定去哪</td>
+<td>DNAT、提前标记</td>
+</tr>
+<tr>
+<td>INPUT</td>
+<td>数据包要进入本机</td>
+<td>控制别人访问本机</td>
+</tr>
+<tr>
+<td>FORWARD</td>
+<td>数据包经过本机转发</td>
+<td>Linux 当路由器或网关</td>
+</tr>
+<tr>
+<td>OUTPUT</td>
+<td>本机发出去的数据包</td>
+<td>控制本机访问外部</td>
+</tr>
+<tr>
+<td>POSTROUTING</td>
+<td>数据包准备从网卡出去</td>
+<td>SNAT、MASQUERADE</td>
+</tr>
+</tbody></table>
+<h2 id="表：规则按用途分类"><a href="#表：规则按用途分类" class="headerlink" title="表：规则按用途分类"></a>表：规则按用途分类</h2><p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140000.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140000.png"  alt="20260605140000" lazyload></a></p>
+<p>链解决的是“数据包走到哪里”，表解决的是“我要对数据包做哪类事情”。</p>
+<table>
+<thead>
+<tr>
+<th>表</th>
+<th>图中含义</th>
+<th>我的理解</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>raw</td>
+<td>在连接跟踪处理前进行特定处理，优先级最高</td>
+<td>很早期介入，常用于跳过连接跟踪</td>
+</tr>
+<tr>
+<td>mangle</td>
+<td>对数据包进行拆包、修改、再封包的处理</td>
+<td>修改包的属性，比如 mark、TTL、TOS</td>
+</tr>
+<tr>
+<td>nat</td>
+<td>所有地址转换相关的操作</td>
+<td>做 DNAT、SNAT、MASQUERADE</td>
+</tr>
+<tr>
+<td>filter</td>
+<td>负责过滤，比如防火墙功能</td>
+<td>最常用，用来 ACCEPT、DROP、REJECT</td>
+</tr>
+</tbody></table>
+<p>初学阶段先重点记两张表：</p>
+<ul>
+<li><code>filter</code>：控制包能不能通过，也就是最常见的防火墙规则。</li>
+<li><code>nat</code>：修改源地址或目标地址，比如端口转发、共享上网。</li>
+</ul>
+<p><code>raw</code> 和 <code>mangle</code> 可以先知道名字，等遇到连接跟踪、打 mark、改 TTL 这类需求时再深入。</p>
+<h2 id="表和链的关系"><a href="#表和链的关系" class="headerlink" title="表和链的关系"></a>表和链的关系</h2><p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140021.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140021.png"  alt="20260605140021" lazyload></a></p>
+<p>不是每张表都能写到每条链上。比如 <code>filter</code> 表没有 <code>PREROUTING</code> 和 <code>POSTROUTING</code>，因为过滤本机流量通常发生在 <code>INPUT</code>、<code>OUTPUT</code>、<code>FORWARD</code> 这些位置。</p>
+<table>
+<thead>
+<tr>
+<th>表 &#x2F; 链</th>
+<th>PREROUTING</th>
+<th>INPUT</th>
+<th>FORWARD</th>
+<th>OUTPUT</th>
+<th>POSTROUTING</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>raw</td>
+<td>支持</td>
+<td>不支持</td>
+<td>不支持</td>
+<td>支持</td>
+<td>不支持</td>
+</tr>
+<tr>
+<td>mangle</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>nat</td>
+<td>支持</td>
+<td>部分系统支持</td>
+<td>不支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>filter</td>
+<td>不支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>不支持</td>
+</tr>
+</tbody></table>
+<p>初学时不用把整张表硬背下来，先记这几个高频组合：</p>
+<ul>
+<li>过滤访问本机的流量：<code>filter</code> 表 + <code>INPUT</code> 链</li>
+<li>过滤本机发出的流量：<code>filter</code> 表 + <code>OUTPUT</code> 链</li>
+<li>过滤转发流量：<code>filter</code> 表 + <code>FORWARD</code> 链</li>
+<li>修改目标地址：<code>nat</code> 表 + <code>PREROUTING</code> 链</li>
+<li>修改源地址：<code>nat</code> 表 + <code>POSTROUTING</code> 链</li>
+</ul>
+<p>比如“禁止别人访问本机 80 端口”：</p>
+<ul>
+<li>访问本机，所以看 <code>INPUT</code></li>
+<li>要过滤流量，所以用 <code>filter</code></li>
+</ul>
+<h2 id="动作：匹配后怎么办"><a href="#动作：匹配后怎么办" class="headerlink" title="动作：匹配后怎么办"></a>动作：匹配后怎么办</h2><p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140035.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140035.png"  alt="20260605140035" lazyload></a></p>
+<p>规则匹配成功后，需要告诉内核怎么处理这个包。这个动作写在 <code>-j</code> 后面，也叫 target。</p>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>含义</th>
+<th>常见用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ACCEPT</td>
+<td>接受数据包，允许通过</td>
+<td>放行流量</td>
+</tr>
+<tr>
+<td>DROP</td>
+<td>丢弃数据包，不返回任何响应</td>
+<td>静默拒绝访问</td>
+</tr>
+<tr>
+<td>REJECT</td>
+<td>拒绝数据包，并返回错误信息</td>
+<td>明确告诉对方被拒绝</td>
+</tr>
+<tr>
+<td>LOG</td>
+<td>记录数据包信息到日志</td>
+<td>排障、观察命中情况</td>
+</tr>
+<tr>
+<td>DNAT</td>
+<td>目标地址转换</td>
+<td>端口转发、负载入口</td>
+</tr>
+<tr>
+<td>SNAT</td>
+<td>源地址转换</td>
+<td>固定出口地址转换</td>
+</tr>
+<tr>
+<td>MASQUERADE</td>
+<td>动态源地址转换</td>
+<td>出口 IP 不固定时做 NAT</td>
+</tr>
+</tbody></table>
+<p>初学者最常用的是前三个：</p>
+<ul>
+<li><code>ACCEPT</code>：放行</li>
+<li><code>DROP</code>：丢掉，而且不告诉对方</li>
+<li><code>REJECT</code>：拒绝，并告诉对方</li>
+</ul>
+<h2 id="从需求推导规则"><a href="#从需求推导规则" class="headerlink" title="从需求推导规则"></a>从需求推导规则</h2><p><a class="simple-lightbox" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140101.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140101.png"  alt="20260605140101" lazyload></a></p>
+<p>这张图是写规则的核心方法。不要先背命令，先按这个顺序想：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">需求 -&gt; 动作 -&gt; 表 -&gt; 链</span><br></pre></td></tr></table></figure>
+
+<p>例如“丢掉访问本机 TCP 80 端口的数据包”：</p>
+<ul>
+<li>需求：禁止访问本机 80 端口</li>
+<li>动作：丢弃数据包，也就是 <code>DROP</code></li>
+<li>表：过滤流量，用 <code>filter</code></li>
+<li>链：访问本机，用 <code>INPUT</code></li>
+</ul>
+<p>再补上匹配条件：</p>
+<ul>
+<li>协议：TCP，写 <code>-p tcp</code></li>
+<li>目标端口：80，写 <code>--dport 80</code></li>
+</ul>
+<p>最后得到完整规则：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h2 id="核心概念"><a href="#核心概念" class="headerlink" title="核心概念"></a>核心概念</h2><p>到这里，几个核心概念可以这样收束：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>解决的问题</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>表 table</td>
+<td>我要做哪类事情</td>
+<td><code>filter</code>、<code>nat</code></td>
+</tr>
+<tr>
+<td>链 chain</td>
+<td>数据包走到了哪个位置</td>
+<td><code>INPUT</code>、<code>OUTPUT</code>、<code>FORWARD</code></td>
+</tr>
+<tr>
+<td>规则 rule</td>
+<td>具体的一条处理逻辑</td>
+<td>匹配 TCP 80 端口然后 DROP</td>
+</tr>
+<tr>
+<td>匹配 match</td>
+<td>找出我要处理的数据包</td>
+<td><code>-p tcp --dport 80</code></td>
+</tr>
+<tr>
+<td>动作 target</td>
+<td>命中后怎么处理</td>
+<td><code>ACCEPT</code>、<code>DROP</code></td>
+</tr>
+</tbody></table>
+<p>iptables 会从链的第一条规则开始往下匹配。匹配到规则后就执行对应动作；如果一直没有匹配到，就执行这条链的默认策略。</p>
+<h2 id="基本语法"><a href="#基本语法" class="headerlink" title="基本语法"></a>基本语法</h2><p>iptables 命令大体长这样：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables [-t 表名] 操作 链名 匹配条件 -j 动作</span><br></pre></td></tr></table></figure>
+
+<p>常用操作：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>-A</code></td>
+<td>append，追加到链末尾</td>
+</tr>
+<tr>
+<td><code>-I</code></td>
+<td>insert，插入到指定位置，默认插到第一条</td>
+</tr>
+<tr>
+<td><code>-D</code></td>
+<td>delete，删除规则</td>
+</tr>
+<tr>
+<td><code>-L</code></td>
+<td>list，查看规则</td>
+</tr>
+<tr>
+<td><code>-P</code></td>
+<td>policy，设置内置链默认策略</td>
+</tr>
+<tr>
+<td><code>-F</code></td>
+<td>flush，清空规则</td>
+</tr>
+</tbody></table>
+<p>参数是区分大小写的，这点很容易踩坑：</p>
+<ul>
+<li><code>-p</code> 表示协议，比如 <code>-p tcp</code></li>
+<li><code>-P</code> 表示默认策略，比如 <code>-P INPUT DROP</code></li>
+<li><code>-i</code> 表示入接口</li>
+<li><code>-I</code> 表示插入规则</li>
+<li><code>INPUT</code>、<code>OUTPUT</code>、<code>ACCEPT</code>、<code>DROP</code> 这些链名和动作通常大写</li>
+<li><code>filter</code>、<code>nat</code>、<code>mangle</code>、<code>raw</code> 这些表名通常小写</li>
+</ul>
+<h2 id="使用场景"><a href="#使用场景" class="headerlink" title="使用场景"></a>使用场景</h2><h3 id="丢掉访问本机-TCP-80-端口的数据包"><a href="#丢掉访问本机-TCP-80-端口的数据包" class="headerlink" title="丢掉访问本机 TCP 80 端口的数据包"></a>丢掉访问本机 TCP 80 端口的数据包</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<p>因为默认就是 <code>filter</code> 表，也可以省略 <code>-t filter</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<p>这条规则的意思是：</p>
+<ul>
+<li><code>-A INPUT</code>：追加到 <code>INPUT</code> 链，处理访问本机的数据包</li>
+<li><code>-p tcp</code>：匹配 TCP 协议</li>
+<li><code>--dport 80</code>：匹配目标端口 80</li>
+<li><code>-j DROP</code>：匹配后直接丢弃</li>
+</ul>
+<h3 id="默认拒绝全部入站，只打开-UDP-53"><a href="#默认拒绝全部入站，只打开-UDP-53" class="headerlink" title="默认拒绝全部入站，只打开 UDP 53"></a>默认拒绝全部入站，只打开 UDP 53</h3><blockquote>
+<p>注意：如果是在远程服务器上操作，先确认 SSH 端口已经放行，否则很容易把自己锁在门外。</p>
+</blockquote>
+<p>先放行已有连接和本机回环流量：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br><span class="line">iptables -A INPUT -i lo -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>再放行 UDP 53：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -p udp --dport 53 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>最后把 <code>INPUT</code> 链默认策略改成 <code>DROP</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<p>为什么要加 <code>ESTABLISHED,RELATED</code>？</p>
+<p>因为默认丢弃入站包后，本机主动访问外部服务时，请求可以从 <code>OUTPUT</code> 出去，但对方回来的响应包会进入 <code>INPUT</code>。如果不放行已有连接的回包，本机很多主动出站请求也会表现得像失败。</p>
+<p>旧写法也常见：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>现在更推荐使用 <code>conntrack</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看-filter-表-INPUT-链规则"><a href="#查看-filter-表-INPUT-链规则" class="headerlink" title="查看 filter 表 INPUT 链规则"></a>查看 filter 表 INPUT 链规则</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<p>参数说明：</p>
+<ul>
+<li><code>-L INPUT</code>：查看 <code>INPUT</code> 链</li>
+<li><code>-n</code>：不要反查域名和服务名，显示更快更直观</li>
+<li><code>-v</code>：显示命中次数、字节数、接口等详细信息</li>
+<li><code>--line-numbers</code>：显示规则编号，方便插入和删除</li>
+</ul>
+<h3 id="在指定位置前插入新规则"><a href="#在指定位置前插入新规则" class="headerlink" title="在指定位置前插入新规则"></a>在指定位置前插入新规则</h3><p>把允许 UDP 54 的规则插入到 <code>INPUT</code> 链第 4 条之前：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -I INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>这里要用 <code>-I</code>，不是 <code>-A</code>。<code>-A</code> 只能追加到链末尾。</p>
+<h3 id="删除指定规则"><a href="#删除指定规则" class="headerlink" title="删除指定规则"></a>删除指定规则</h3><p>删除 <code>filter</code> 表 <code>INPUT</code> 链的第 8 条规则：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -D INPUT 8</span><br></pre></td></tr></table></figure>
+
+<p>删除前建议先查看编号：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看完整规则"><a href="#查看完整规则" class="headerlink" title="查看完整规则"></a>查看完整规则</h3><p><code>iptables -L</code> 更适合人工查看，<code>iptables-save</code> 更适合备份和排障：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iptables-save</span><br></pre></td></tr></table></figure>
+
+<p>它会按可恢复的格式输出当前所有表和规则。</p>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>学习 iptables 可以先抓住四个问题：</p>
+<ol>
+<li>我要处理什么流量？入站、本机出站，还是转发？</li>
+<li>这个流量会经过哪条链？<code>INPUT</code>、<code>OUTPUT</code>、<code>FORWARD</code>、<code>PREROUTING</code> 还是 <code>POSTROUTING</code>？</li>
+<li>我要做什么动作？过滤就用 <code>filter</code>，地址转换就用 <code>nat</code>。</li>
+<li>规则顺序对不对？iptables 从上往下匹配，默认策略优先级最低。</li>
+</ol>
+<p>记住这条主线后，再看各种参数就不会乱：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">先判断数据包流向 -&gt; 再选链 -&gt; 再选表 -&gt; 最后写匹配和动作</span><br></pre></td></tr></table></figure>
+
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><ul>
+<li><a href="https://www.bilibili.com/video/BV1gvN2zCEjq/?spm_id_from=333.1387.homepage.video_card.click">米拉一老王: Linux中的iptables命令的组织逻辑 netfilter规则创建 四表五链结构</a></li>
+<li><a href="https://www.bilibili.com/video/BV1qNKcz8Eb1/?spm_id_from=333.1387.homepage.video_card.click">米拉一老王: 你知道吗？Linux中的iptables到底是什么？netfilter又是什么？ 白话iptables工作原理</a></li>
+<li><code>man iptables</code></li>
+<li><a href="https://www.netfilter.org/documentation/">netfilter 官方文档</a></li>
+<li><a href="https://man7.org/linux/man-pages/man8/iptables.8.html">iptables(8) - Linux manual page</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>网络</category>
+      </categories>
+      <tags>
+        <tag>Network</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Dev Container 中使用 1Password SSH Agent</title>
     <url>/2026/06/03/devcontainer-1password-ssh-agent/</url>
     <content><![CDATA[<h1 id="Dev-Container-中使用-1Password-SSH-Agent"><a href="#Dev-Container-中使用-1Password-SSH-Agent" class="headerlink" title="Dev Container 中使用 1Password SSH Agent"></a>Dev Container 中使用 1Password SSH Agent</h1><blockquote>

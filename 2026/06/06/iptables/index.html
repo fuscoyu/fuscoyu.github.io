@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>每天学习一个命令: iptables</title>
+<meta name="keywords" content="每天学习一个命令: iptables, fuscoyu&#39;s Blog">
+<meta name="description" content="iptables
+本文由 Codex 辅助生成，内容整理自 B 站「米拉一老王」的 iptables 学习资料。
+
+简介iptables 常被直接叫做 Linux 防火墙，但更准确一点说，它是一个用户态命令行工具，用来给 Linux 内核里">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="每天学习一个命令: iptables">
+<meta property="og:description" content="iptables
+本文由 Codex 辅助生成，内容整理自 B 站「米拉一老王」的 iptables 学习资料。
+
+简介iptables 常被直接叫做 Linux 防火墙，但更准确一点说，它是一个用户态命令行工具，用来给 Linux 内核里">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <link rel="stylesheet" href="/style/simple-lightbox.min.css"><meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">每天学习一个命令: iptables</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-06-06</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Network/">
+              Network
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <h1 id="iptables"><a href="#iptables" class="headerlink" title="iptables"></a>iptables</h1><blockquote>
+<p>本文由 Codex 辅助生成，内容整理自 B 站「米拉一老王」的 iptables 学习资料。</p>
+</blockquote>
+<h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>iptables 常被直接叫做 Linux 防火墙，但更准确一点说，它是一个用户态命令行工具，用来给 Linux 内核里的 netfilter 写规则。</p>
+<p>netfilter 才是真正工作在内核里的包处理框架。数据包进入协议栈后，会在几个固定位置经过 netfilter 的 hook 点；iptables 把规则挂到这些 hook 对应的链上，内核经过链时按顺序匹配规则，匹配到了就执行对应动作。</p>
+<p>写 iptables 规则时，可以先把需求翻译成下面这几个问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">需求是什么 -&gt; 要做什么动作 -&gt; 用哪张表 -&gt; 写到哪条链 -&gt; 补上匹配条件</span><br></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<ul>
+<li>需求：禁止别人访问本机 80 端口</li>
+<li>动作：丢弃数据包</li>
+<li>表：filter 表</li>
+<li>链：INPUT 链</li>
+<li>规则：匹配 TCP 目标端口 80，然后 DROP</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="先建立一个简单模型"><a href="#先建立一个简单模型" class="headerlink" title="先建立一个简单模型"></a>先建立一个简单模型</h2><p>刚开始学 iptables 时，不要先背命令，先记住一句话：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">数据包经过内核时，netfilter 在几个固定位置设置了检查点，iptables 用来给这些检查点写规则。</span><br></pre></td></tr></table></figure>
+
+<p>这些检查点就是常说的“链”。每条规则本质上都在回答三个问题：</p>
+<ol>
+<li>在哪里检查？也就是选哪条链。</li>
+<li>检查什么包？也就是写匹配条件。</li>
+<li>命中后怎么办？也就是选动作。</li>
+</ol>
+<h2 id="数据包会经过哪些链"><a href="#数据包会经过哪些链" class="headerlink" title="数据包会经过哪些链"></a>数据包会经过哪些链</h2><h3 id="入站和出站流量"><a href="#入站和出站流量" class="headerlink" title="入站和出站流量"></a>入站和出站流量</h3><p><a class="simple-lightbox" target="_blank" rel="noopener" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/2026-06-05_13-55-22.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/2026-06-05_13-55-22.png"  alt="2026-06-05_13-55-22" lazyload></a></p>
+<p>这张图画了两种最常见的流量。</p>
+<p>第一种是别人访问本机，比如访问这台机器的 80 端口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">数据包进入网卡 -&gt; PREROUTING -&gt; 路由判断目标是本机 -&gt; INPUT -&gt; 本机进程</span><br></pre></td></tr></table></figure>
+
+<p>第二种是本机主动访问外部服务，比如执行 <code>curl https://example.com</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">本机进程 -&gt; OUTPUT -&gt; POSTROUTING -&gt; 数据包通过网卡发出</span><br></pre></td></tr></table></figure>
+
+<p>这里图里的 <code>localhost</code> 可以先理解为“本机上的进程或服务”，不必纠结它是不是 <code>127.0.0.1</code>。</p>
+<p>先记结论：</p>
+<ul>
+<li>别人访问本机：重点看 <code>INPUT</code></li>
+<li>本机主动访问别人：重点看 <code>OUTPUT</code></li>
+</ul>
+<h3 id="转发流量"><a href="#转发流量" class="headerlink" title="转发流量"></a>转发流量</h3><p><a class="simple-lightbox" target="_blank" rel="noopener" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605135926.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605135926.png"  alt="20260605135926" lazyload></a></p>
+<p>这张图画的是 Linux 作为路由器或网关时的场景。</p>
+<p>如果数据包进入本机后，路由判断发现目标不是本机，而是需要从另一块网卡转发出去，就会走 <code>FORWARD</code> 链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">数据包进入网卡 -&gt; PREROUTING -&gt; 路由判断目标不是本机 -&gt; FORWARD -&gt; POSTROUTING -&gt; 网卡发出</span><br></pre></td></tr></table></figure>
+
+<p><code>FORWARD</code> 链只处理经过本机转发的流量，不处理访问本机服务的流量。</p>
+<p>常见链可以这样记：</p>
+<table>
+<thead>
+<tr>
+<th>链</th>
+<th>初学者理解</th>
+<th>常见场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PREROUTING</td>
+<td>数据包刚进来，还没决定去哪</td>
+<td>DNAT、提前标记</td>
+</tr>
+<tr>
+<td>INPUT</td>
+<td>数据包要进入本机</td>
+<td>控制别人访问本机</td>
+</tr>
+<tr>
+<td>FORWARD</td>
+<td>数据包经过本机转发</td>
+<td>Linux 当路由器或网关</td>
+</tr>
+<tr>
+<td>OUTPUT</td>
+<td>本机发出去的数据包</td>
+<td>控制本机访问外部</td>
+</tr>
+<tr>
+<td>POSTROUTING</td>
+<td>数据包准备从网卡出去</td>
+<td>SNAT、MASQUERADE</td>
+</tr>
+</tbody></table>
+<h2 id="表：规则按用途分类"><a href="#表：规则按用途分类" class="headerlink" title="表：规则按用途分类"></a>表：规则按用途分类</h2><p><a class="simple-lightbox" target="_blank" rel="noopener" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140000.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140000.png"  alt="20260605140000" lazyload></a></p>
+<p>链解决的是“数据包走到哪里”，表解决的是“我要对数据包做哪类事情”。</p>
+<table>
+<thead>
+<tr>
+<th>表</th>
+<th>图中含义</th>
+<th>我的理解</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>raw</td>
+<td>在连接跟踪处理前进行特定处理，优先级最高</td>
+<td>很早期介入，常用于跳过连接跟踪</td>
+</tr>
+<tr>
+<td>mangle</td>
+<td>对数据包进行拆包、修改、再封包的处理</td>
+<td>修改包的属性，比如 mark、TTL、TOS</td>
+</tr>
+<tr>
+<td>nat</td>
+<td>所有地址转换相关的操作</td>
+<td>做 DNAT、SNAT、MASQUERADE</td>
+</tr>
+<tr>
+<td>filter</td>
+<td>负责过滤，比如防火墙功能</td>
+<td>最常用，用来 ACCEPT、DROP、REJECT</td>
+</tr>
+</tbody></table>
+<p>初学阶段先重点记两张表：</p>
+<ul>
+<li><code>filter</code>：控制包能不能通过，也就是最常见的防火墙规则。</li>
+<li><code>nat</code>：修改源地址或目标地址，比如端口转发、共享上网。</li>
+</ul>
+<p><code>raw</code> 和 <code>mangle</code> 可以先知道名字，等遇到连接跟踪、打 mark、改 TTL 这类需求时再深入。</p>
+<h2 id="表和链的关系"><a href="#表和链的关系" class="headerlink" title="表和链的关系"></a>表和链的关系</h2><p><a class="simple-lightbox" target="_blank" rel="noopener" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140021.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140021.png"  alt="20260605140021" lazyload></a></p>
+<p>不是每张表都能写到每条链上。比如 <code>filter</code> 表没有 <code>PREROUTING</code> 和 <code>POSTROUTING</code>，因为过滤本机流量通常发生在 <code>INPUT</code>、<code>OUTPUT</code>、<code>FORWARD</code> 这些位置。</p>
+<table>
+<thead>
+<tr>
+<th>表 &#x2F; 链</th>
+<th>PREROUTING</th>
+<th>INPUT</th>
+<th>FORWARD</th>
+<th>OUTPUT</th>
+<th>POSTROUTING</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>raw</td>
+<td>支持</td>
+<td>不支持</td>
+<td>不支持</td>
+<td>支持</td>
+<td>不支持</td>
+</tr>
+<tr>
+<td>mangle</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>nat</td>
+<td>支持</td>
+<td>部分系统支持</td>
+<td>不支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>filter</td>
+<td>不支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>不支持</td>
+</tr>
+</tbody></table>
+<p>初学时不用把整张表硬背下来，先记这几个高频组合：</p>
+<ul>
+<li>过滤访问本机的流量：<code>filter</code> 表 + <code>INPUT</code> 链</li>
+<li>过滤本机发出的流量：<code>filter</code> 表 + <code>OUTPUT</code> 链</li>
+<li>过滤转发流量：<code>filter</code> 表 + <code>FORWARD</code> 链</li>
+<li>修改目标地址：<code>nat</code> 表 + <code>PREROUTING</code> 链</li>
+<li>修改源地址：<code>nat</code> 表 + <code>POSTROUTING</code> 链</li>
+</ul>
+<p>比如“禁止别人访问本机 80 端口”：</p>
+<ul>
+<li>访问本机，所以看 <code>INPUT</code></li>
+<li>要过滤流量，所以用 <code>filter</code></li>
+</ul>
+<h2 id="动作：匹配后怎么办"><a href="#动作：匹配后怎么办" class="headerlink" title="动作：匹配后怎么办"></a>动作：匹配后怎么办</h2><p><a class="simple-lightbox" target="_blank" rel="noopener" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140035.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140035.png"  alt="20260605140035" lazyload></a></p>
+<p>规则匹配成功后，需要告诉内核怎么处理这个包。这个动作写在 <code>-j</code> 后面，也叫 target。</p>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>含义</th>
+<th>常见用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ACCEPT</td>
+<td>接受数据包，允许通过</td>
+<td>放行流量</td>
+</tr>
+<tr>
+<td>DROP</td>
+<td>丢弃数据包，不返回任何响应</td>
+<td>静默拒绝访问</td>
+</tr>
+<tr>
+<td>REJECT</td>
+<td>拒绝数据包，并返回错误信息</td>
+<td>明确告诉对方被拒绝</td>
+</tr>
+<tr>
+<td>LOG</td>
+<td>记录数据包信息到日志</td>
+<td>排障、观察命中情况</td>
+</tr>
+<tr>
+<td>DNAT</td>
+<td>目标地址转换</td>
+<td>端口转发、负载入口</td>
+</tr>
+<tr>
+<td>SNAT</td>
+<td>源地址转换</td>
+<td>固定出口地址转换</td>
+</tr>
+<tr>
+<td>MASQUERADE</td>
+<td>动态源地址转换</td>
+<td>出口 IP 不固定时做 NAT</td>
+</tr>
+</tbody></table>
+<p>初学者最常用的是前三个：</p>
+<ul>
+<li><code>ACCEPT</code>：放行</li>
+<li><code>DROP</code>：丢掉，而且不告诉对方</li>
+<li><code>REJECT</code>：拒绝，并告诉对方</li>
+</ul>
+<h2 id="从需求推导规则"><a href="#从需求推导规则" class="headerlink" title="从需求推导规则"></a>从需求推导规则</h2><p><a class="simple-lightbox" target="_blank" rel="noopener" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140101.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260605140101.png"  alt="20260605140101" lazyload></a></p>
+<p>这张图是写规则的核心方法。不要先背命令，先按这个顺序想：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">需求 -&gt; 动作 -&gt; 表 -&gt; 链</span><br></pre></td></tr></table></figure>
+
+<p>例如“丢掉访问本机 TCP 80 端口的数据包”：</p>
+<ul>
+<li>需求：禁止访问本机 80 端口</li>
+<li>动作：丢弃数据包，也就是 <code>DROP</code></li>
+<li>表：过滤流量，用 <code>filter</code></li>
+<li>链：访问本机，用 <code>INPUT</code></li>
+</ul>
+<p>再补上匹配条件：</p>
+<ul>
+<li>协议：TCP，写 <code>-p tcp</code></li>
+<li>目标端口：80，写 <code>--dport 80</code></li>
+</ul>
+<p>最后得到完整规则：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h2 id="核心概念"><a href="#核心概念" class="headerlink" title="核心概念"></a>核心概念</h2><p>到这里，几个核心概念可以这样收束：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>解决的问题</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>表 table</td>
+<td>我要做哪类事情</td>
+<td><code>filter</code>、<code>nat</code></td>
+</tr>
+<tr>
+<td>链 chain</td>
+<td>数据包走到了哪个位置</td>
+<td><code>INPUT</code>、<code>OUTPUT</code>、<code>FORWARD</code></td>
+</tr>
+<tr>
+<td>规则 rule</td>
+<td>具体的一条处理逻辑</td>
+<td>匹配 TCP 80 端口然后 DROP</td>
+</tr>
+<tr>
+<td>匹配 match</td>
+<td>找出我要处理的数据包</td>
+<td><code>-p tcp --dport 80</code></td>
+</tr>
+<tr>
+<td>动作 target</td>
+<td>命中后怎么处理</td>
+<td><code>ACCEPT</code>、<code>DROP</code></td>
+</tr>
+</tbody></table>
+<p>iptables 会从链的第一条规则开始往下匹配。匹配到规则后就执行对应动作；如果一直没有匹配到，就执行这条链的默认策略。</p>
+<h2 id="基本语法"><a href="#基本语法" class="headerlink" title="基本语法"></a>基本语法</h2><p>iptables 命令大体长这样：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables [-t 表名] 操作 链名 匹配条件 -j 动作</span><br></pre></td></tr></table></figure>
+
+<p>常用操作：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>-A</code></td>
+<td>append，追加到链末尾</td>
+</tr>
+<tr>
+<td><code>-I</code></td>
+<td>insert，插入到指定位置，默认插到第一条</td>
+</tr>
+<tr>
+<td><code>-D</code></td>
+<td>delete，删除规则</td>
+</tr>
+<tr>
+<td><code>-L</code></td>
+<td>list，查看规则</td>
+</tr>
+<tr>
+<td><code>-P</code></td>
+<td>policy，设置内置链默认策略</td>
+</tr>
+<tr>
+<td><code>-F</code></td>
+<td>flush，清空规则</td>
+</tr>
+</tbody></table>
+<p>参数是区分大小写的，这点很容易踩坑：</p>
+<ul>
+<li><code>-p</code> 表示协议，比如 <code>-p tcp</code></li>
+<li><code>-P</code> 表示默认策略，比如 <code>-P INPUT DROP</code></li>
+<li><code>-i</code> 表示入接口</li>
+<li><code>-I</code> 表示插入规则</li>
+<li><code>INPUT</code>、<code>OUTPUT</code>、<code>ACCEPT</code>、<code>DROP</code> 这些链名和动作通常大写</li>
+<li><code>filter</code>、<code>nat</code>、<code>mangle</code>、<code>raw</code> 这些表名通常小写</li>
+</ul>
+<h2 id="使用场景"><a href="#使用场景" class="headerlink" title="使用场景"></a>使用场景</h2><h3 id="丢掉访问本机-TCP-80-端口的数据包"><a href="#丢掉访问本机-TCP-80-端口的数据包" class="headerlink" title="丢掉访问本机 TCP 80 端口的数据包"></a>丢掉访问本机 TCP 80 端口的数据包</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<p>因为默认就是 <code>filter</code> 表，也可以省略 <code>-t filter</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<p>这条规则的意思是：</p>
+<ul>
+<li><code>-A INPUT</code>：追加到 <code>INPUT</code> 链，处理访问本机的数据包</li>
+<li><code>-p tcp</code>：匹配 TCP 协议</li>
+<li><code>--dport 80</code>：匹配目标端口 80</li>
+<li><code>-j DROP</code>：匹配后直接丢弃</li>
+</ul>
+<h3 id="默认拒绝全部入站，只打开-UDP-53"><a href="#默认拒绝全部入站，只打开-UDP-53" class="headerlink" title="默认拒绝全部入站，只打开 UDP 53"></a>默认拒绝全部入站，只打开 UDP 53</h3><blockquote>
+<p>注意：如果是在远程服务器上操作，先确认 SSH 端口已经放行，否则很容易把自己锁在门外。</p>
+</blockquote>
+<p>先放行已有连接和本机回环流量：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br><span class="line">iptables -A INPUT -i lo -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>再放行 UDP 53：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p udp --dport 53 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>最后把 <code>INPUT</code> 链默认策略改成 <code>DROP</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<p>为什么要加 <code>ESTABLISHED,RELATED</code>？</p>
+<p>因为默认丢弃入站包后，本机主动访问外部服务时，请求可以从 <code>OUTPUT</code> 出去，但对方回来的响应包会进入 <code>INPUT</code>。如果不放行已有连接的回包，本机很多主动出站请求也会表现得像失败。</p>
+<p>旧写法也常见：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>现在更推荐使用 <code>conntrack</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看-filter-表-INPUT-链规则"><a href="#查看-filter-表-INPUT-链规则" class="headerlink" title="查看 filter 表 INPUT 链规则"></a>查看 filter 表 INPUT 链规则</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<p>参数说明：</p>
+<ul>
+<li><code>-L INPUT</code>：查看 <code>INPUT</code> 链</li>
+<li><code>-n</code>：不要反查域名和服务名，显示更快更直观</li>
+<li><code>-v</code>：显示命中次数、字节数、接口等详细信息</li>
+<li><code>--line-numbers</code>：显示规则编号，方便插入和删除</li>
+</ul>
+<h3 id="在指定位置前插入新规则"><a href="#在指定位置前插入新规则" class="headerlink" title="在指定位置前插入新规则"></a>在指定位置前插入新规则</h3><p>把允许 UDP 54 的规则插入到 <code>INPUT</code> 链第 4 条之前：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -I INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>这里要用 <code>-I</code>，不是 <code>-A</code>。<code>-A</code> 只能追加到链末尾。</p>
+<h3 id="删除指定规则"><a href="#删除指定规则" class="headerlink" title="删除指定规则"></a>删除指定规则</h3><p>删除 <code>filter</code> 表 <code>INPUT</code> 链的第 8 条规则：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -D INPUT 8</span><br></pre></td></tr></table></figure>
+
+<p>删除前建议先查看编号：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看完整规则"><a href="#查看完整规则" class="headerlink" title="查看完整规则"></a>查看完整规则</h3><p><code>iptables -L</code> 更适合人工查看，<code>iptables-save</code> 更适合备份和排障：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables-save</span><br></pre></td></tr></table></figure>
+
+<p>它会按可恢复的格式输出当前所有表和规则。</p>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>学习 iptables 可以先抓住四个问题：</p>
+<ol>
+<li>我要处理什么流量？入站、本机出站，还是转发？</li>
+<li>这个流量会经过哪条链？<code>INPUT</code>、<code>OUTPUT</code>、<code>FORWARD</code>、<code>PREROUTING</code> 还是 <code>POSTROUTING</code>？</li>
+<li>我要做什么动作？过滤就用 <code>filter</code>，地址转换就用 <code>nat</code>。</li>
+<li>规则顺序对不对？iptables 从上往下匹配，默认策略优先级最低。</li>
+</ol>
+<p>记住这条主线后，再看各种参数就不会乱：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">先判断数据包流向 -&gt; 再选链 -&gt; 再选表 -&gt; 最后写匹配和动作</span><br></pre></td></tr></table></figure>
+
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://www.bilibili.com/video/BV1gvN2zCEjq/?spm_id_from=333.1387.homepage.video_card.click">米拉一老王: Linux中的iptables命令的组织逻辑 netfilter规则创建 四表五链结构</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.bilibili.com/video/BV1qNKcz8Eb1/?spm_id_from=333.1387.homepage.video_card.click">米拉一老王: 你知道吗？Linux中的iptables到底是什么？netfilter又是什么？ 白话iptables工作原理</a></li>
+<li><code>man iptables</code></li>
+<li><a target="_blank" rel="noopener" href="https://www.netfilter.org/documentation/">netfilter 官方文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man8/iptables.8.html">iptables(8) - Linux manual page</a></li>
+</ul>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-1"><a class="top-box-link" href="#iptables"><span class="top-box-text">iptables</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E7%AE%80%E4%BB%8B"><span class="top-box-text">简介</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%85%88%E5%BB%BA%E7%AB%8B%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E6%A8%A1%E5%9E%8B"><span class="top-box-text">先建立一个简单模型</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%95%B0%E6%8D%AE%E5%8C%85%E4%BC%9A%E7%BB%8F%E8%BF%87%E5%93%AA%E4%BA%9B%E9%93%BE"><span class="top-box-text">数据包会经过哪些链</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%85%A5%E7%AB%99%E5%92%8C%E5%87%BA%E7%AB%99%E6%B5%81%E9%87%8F"><span class="top-box-text">入站和出站流量</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E8%BD%AC%E5%8F%91%E6%B5%81%E9%87%8F"><span class="top-box-text">转发流量</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E8%A1%A8%EF%BC%9A%E8%A7%84%E5%88%99%E6%8C%89%E7%94%A8%E9%80%94%E5%88%86%E7%B1%BB"><span class="top-box-text">表：规则按用途分类</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E8%A1%A8%E5%92%8C%E9%93%BE%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="top-box-text">表和链的关系</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8A%A8%E4%BD%9C%EF%BC%9A%E5%8C%B9%E9%85%8D%E5%90%8E%E6%80%8E%E4%B9%88%E5%8A%9E"><span class="top-box-text">动作：匹配后怎么办</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BB%8E%E9%9C%80%E6%B1%82%E6%8E%A8%E5%AF%BC%E8%A7%84%E5%88%99"><span class="top-box-text">从需求推导规则</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="top-box-text">核心概念</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%9F%BA%E6%9C%AC%E8%AF%AD%E6%B3%95"><span class="top-box-text">基本语法</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="top-box-text">使用场景</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E4%B8%A2%E6%8E%89%E8%AE%BF%E9%97%AE%E6%9C%AC%E6%9C%BA-TCP-80-%E7%AB%AF%E5%8F%A3%E7%9A%84%E6%95%B0%E6%8D%AE%E5%8C%85"><span class="top-box-text">丢掉访问本机 TCP 80 端口的数据包</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E9%BB%98%E8%AE%A4%E6%8B%92%E7%BB%9D%E5%85%A8%E9%83%A8%E5%85%A5%E7%AB%99%EF%BC%8C%E5%8F%AA%E6%89%93%E5%BC%80-UDP-53"><span class="top-box-text">默认拒绝全部入站，只打开 UDP 53</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E6%9F%A5%E7%9C%8B-filter-%E8%A1%A8-INPUT-%E9%93%BE%E8%A7%84%E5%88%99"><span class="top-box-text">查看 filter 表 INPUT 链规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%9C%A8%E6%8C%87%E5%AE%9A%E4%BD%8D%E7%BD%AE%E5%89%8D%E6%8F%92%E5%85%A5%E6%96%B0%E8%A7%84%E5%88%99"><span class="top-box-text">在指定位置前插入新规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%88%A0%E9%99%A4%E6%8C%87%E5%AE%9A%E8%A7%84%E5%88%99"><span class="top-box-text">删除指定规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E6%9F%A5%E7%9C%8B%E5%AE%8C%E6%95%B4%E8%A7%84%E5%88%99"><span class="top-box-text">查看完整规则</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%B0%8F%E7%BB%93"><span class="top-box-text">小结</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E6%96%87%E7%AB%A0"><span class="top-box-text">参考文章</span></a></li></ol></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/06/03/devcontainer-1password-ssh-agent/">
+          <h3 class="post-title">
+            
+            下一篇：Dev Container 中使用 1Password SSH Agent
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  <script src="/js/simple-lightbox.min.js"></script><script>document.addEventListener('DOMContentLoaded', function() {new SimpleLightbox('.post-detail .simple-lightbox', {fileExt: false,captionsData:'alt'});});</script></body>
+</html>
+

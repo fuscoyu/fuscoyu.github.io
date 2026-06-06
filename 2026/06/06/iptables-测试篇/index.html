@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>每天学习一个命令: iptables 测试篇</title>
+<meta name="keywords" content="每天学习一个命令: iptables 测试篇, fuscoyu&#39;s Blog">
+<meta name="description" content="iptables 测试篇
+本文由 Codex 辅助生成，用来测试自己是否掌握 iptables 基础命令。
+
+上一篇整理了 iptables 的基础概念和常用命令。这一篇换个方式：不继续讲概念，而是通过题目检查自己是否真的会用。
+建议先不要">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="每天学习一个命令: iptables 测试篇">
+<meta property="og:description" content="iptables 测试篇
+本文由 Codex 辅助生成，用来测试自己是否掌握 iptables 基础命令。
+
+上一篇整理了 iptables 的基础概念和常用命令。这一篇换个方式：不继续讲概念，而是通过题目检查自己是否真的会用。
+建议先不要">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">每天学习一个命令: iptables 测试篇</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-06-06</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Network/">
+              Network
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <h1 id="iptables-测试篇"><a href="#iptables-测试篇" class="headerlink" title="iptables 测试篇"></a>iptables 测试篇</h1><blockquote>
+<p>本文由 Codex 辅助生成，用来测试自己是否掌握 iptables 基础命令。</p>
+</blockquote>
+<p>上一篇整理了 iptables 的基础概念和常用命令。这一篇换个方式：不继续讲概念，而是通过题目检查自己是否真的会用。</p>
+<p>建议先不要看答案，自己在纸上或测试机器里写一遍命令，再对照参考答案。</p>
+<blockquote>
+<p>注意：不要直接在生产机器或远程服务器上随便执行 <code>DROP</code>、<code>-F</code>、<code>-P INPUT DROP</code> 这类命令，容易把自己锁在外面。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、基础概念题"><a href="#一、基础概念题" class="headerlink" title="一、基础概念题"></a>一、基础概念题</h2><h3 id="1-iptables-和-netfilter-分别是什么？"><a href="#1-iptables-和-netfilter-分别是什么？" class="headerlink" title="1. iptables 和 netfilter 分别是什么？"></a>1. iptables 和 netfilter 分别是什么？</h3><p>要求：用自己的话说明谁在用户态，谁在内核态。</p>
+<h3 id="2-下面三类流量分别主要看哪条链？"><a href="#2-下面三类流量分别主要看哪条链？" class="headerlink" title="2. 下面三类流量分别主要看哪条链？"></a>2. 下面三类流量分别主要看哪条链？</h3><ol>
+<li>别人访问本机服务</li>
+<li>本机主动访问外部服务</li>
+<li>Linux 机器作为网关转发流量</li>
+</ol>
+<h3 id="3-filter-表主要用来做什么？"><a href="#3-filter-表主要用来做什么？" class="headerlink" title="3. filter 表主要用来做什么？"></a>3. <code>filter</code> 表主要用来做什么？</h3><p>要求：说出它和 <code>nat</code> 表的区别。</p>
+<h3 id="4-iptables-规则为什么要注意顺序？"><a href="#4-iptables-规则为什么要注意顺序？" class="headerlink" title="4. iptables 规则为什么要注意顺序？"></a>4. iptables 规则为什么要注意顺序？</h3><p>要求：说明规则从上往下匹配的影响。</p>
+<h3 id="5-DROP-和-REJECT-有什么区别？"><a href="#5-DROP-和-REJECT-有什么区别？" class="headerlink" title="5. DROP 和 REJECT 有什么区别？"></a>5. <code>DROP</code> 和 <code>REJECT</code> 有什么区别？</h3><p>要求：说明对方是否会收到响应。</p>
+<h2 id="二、命令填空题"><a href="#二、命令填空题" class="headerlink" title="二、命令填空题"></a>二、命令填空题</h2><h3 id="6-查看-filter-表-INPUT-链规则，并显示规则编号"><a href="#6-查看-filter-表-INPUT-链规则，并显示规则编号" class="headerlink" title="6. 查看 filter 表 INPUT 链规则，并显示规则编号"></a>6. 查看 <code>filter</code> 表 <code>INPUT</code> 链规则，并显示规则编号</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter ___ INPUT -n -v ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-丢弃访问本机-TCP-80-端口的数据包"><a href="#7-丢弃访问本机-TCP-80-端口的数据包" class="headerlink" title="7. 丢弃访问本机 TCP 80 端口的数据包"></a>7. 丢弃访问本机 TCP 80 端口的数据包</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -A ___ -p tcp ___ 80 -j ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-允许访问本机-UDP-53-端口"><a href="#8-允许访问本机-UDP-53-端口" class="headerlink" title="8. 允许访问本机 UDP 53 端口"></a>8. 允许访问本机 UDP 53 端口</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p ___ --dport ___ -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-把-INPUT-链默认策略设置为丢弃"><a href="#9-把-INPUT-链默认策略设置为丢弃" class="headerlink" title="9. 把 INPUT 链默认策略设置为丢弃"></a>9. 把 <code>INPUT</code> 链默认策略设置为丢弃</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables ___ INPUT ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="10-删除-INPUT-链第-8-条规则"><a href="#10-删除-INPUT-链第-8-条规则" class="headerlink" title="10. 删除 INPUT 链第 8 条规则"></a>10. 删除 <code>INPUT</code> 链第 8 条规则</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter ___ INPUT ___</span><br></pre></td></tr></table></figure>
+
+<h3 id="11-在-INPUT-链第-4-条规则前插入一条允许-UDP-54-的规则"><a href="#11-在-INPUT-链第-4-条规则前插入一条允许-UDP-54-的规则" class="headerlink" title="11. 在 INPUT 链第 4 条规则前插入一条允许 UDP 54 的规则"></a>11. 在 <code>INPUT</code> 链第 4 条规则前插入一条允许 UDP 54 的规则</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter ___ INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="12-放行已有连接和相关连接的回包"><a href="#12-放行已有连接和相关连接的回包" class="headerlink" title="12. 放行已有连接和相关连接的回包"></a>12. 放行已有连接和相关连接的回包</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack ___ ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h2 id="三、判断题"><a href="#三、判断题" class="headerlink" title="三、判断题"></a>三、判断题</h2><h3 id="13-不写-t-参数时，iptables-默认操作-filter-表。"><a href="#13-不写-t-参数时，iptables-默认操作-filter-表。" class="headerlink" title="13. 不写 -t 参数时，iptables 默认操作 filter 表。"></a>13. 不写 <code>-t</code> 参数时，iptables 默认操作 <code>filter</code> 表。</h3><p>对 &#x2F; 错？</p>
+<h3 id="14-A-INPUT-4-表示把规则插入到-INPUT-链第-4-条前面。"><a href="#14-A-INPUT-4-表示把规则插入到-INPUT-链第-4-条前面。" class="headerlink" title="14. -A INPUT 4 表示把规则插入到 INPUT 链第 4 条前面。"></a>14. <code>-A INPUT 4</code> 表示把规则插入到 <code>INPUT</code> 链第 4 条前面。</h3><p>对 &#x2F; 错？</p>
+<h3 id="15-P-INPUT-DROP-设置的是-INPUT-链的默认策略，它会排在所有规则之前优先匹配。"><a href="#15-P-INPUT-DROP-设置的是-INPUT-链的默认策略，它会排在所有规则之前优先匹配。" class="headerlink" title="15. -P INPUT DROP 设置的是 INPUT 链的默认策略，它会排在所有规则之前优先匹配。"></a>15. <code>-P INPUT DROP</code> 设置的是 <code>INPUT</code> 链的默认策略，它会排在所有规则之前优先匹配。</h3><p>对 &#x2F; 错？</p>
+<h3 id="16-本机主动访问外部服务时，外部返回的数据包可能会进入-INPUT-链。"><a href="#16-本机主动访问外部服务时，外部返回的数据包可能会进入-INPUT-链。" class="headerlink" title="16. 本机主动访问外部服务时，外部返回的数据包可能会进入 INPUT 链。"></a>16. 本机主动访问外部服务时，外部返回的数据包可能会进入 <code>INPUT</code> 链。</h3><p>对 &#x2F; 错？</p>
+<h3 id="17-LOG-动作会记录日志，然后继续匹配后续规则。"><a href="#17-LOG-动作会记录日志，然后继续匹配后续规则。" class="headerlink" title="17. LOG 动作会记录日志，然后继续匹配后续规则。"></a>17. <code>LOG</code> 动作会记录日志，然后继续匹配后续规则。</h3><p>对 &#x2F; 错？</p>
+<h2 id="四、场景题"><a href="#四、场景题" class="headerlink" title="四、场景题"></a>四、场景题</h2><h3 id="18-默认拒绝全部入站，只允许-UDP-53"><a href="#18-默认拒绝全部入站，只允许-UDP-53" class="headerlink" title="18. 默认拒绝全部入站，只允许 UDP 53"></a>18. 默认拒绝全部入站，只允许 UDP 53</h3><p>要求：写出完整命令。至少包含：</p>
+<ul>
+<li>放行已有连接回包</li>
+<li>放行本机回环接口</li>
+<li>放行 UDP 53</li>
+<li>设置 <code>INPUT</code> 默认策略为 <code>DROP</code></li>
+</ul>
+<h3 id="19-只临时阻断别人访问本机-8080-端口"><a href="#19-只临时阻断别人访问本机-8080-端口" class="headerlink" title="19. 只临时阻断别人访问本机 8080 端口"></a>19. 只临时阻断别人访问本机 8080 端口</h3><p>要求：写一条规则，不修改默认策略。</p>
+<h3 id="20-查看规则时发现不知道该删除哪条，应该先执行什么命令？"><a href="#20-查看规则时发现不知道该删除哪条，应该先执行什么命令？" class="headerlink" title="20. 查看规则时发现不知道该删除哪条，应该先执行什么命令？"></a>20. 查看规则时发现不知道该删除哪条，应该先执行什么命令？</h3><p>要求：显示规则编号，避免删错。</p>
+<h3 id="21-想允许-SSH-连接后再设置默认拒绝入站，应该先做什么？"><a href="#21-想允许-SSH-连接后再设置默认拒绝入站，应该先做什么？" class="headerlink" title="21. 想允许 SSH 连接后再设置默认拒绝入站，应该先做什么？"></a>21. 想允许 SSH 连接后再设置默认拒绝入站，应该先做什么？</h3><p>要求：写出放行 SSH 22 端口的命令，并说明为什么要先做。</p>
+<h3 id="22-想清空-INPUT-链所有规则，命令怎么写？"><a href="#22-想清空-INPUT-链所有规则，命令怎么写？" class="headerlink" title="22. 想清空 INPUT 链所有规则，命令怎么写？"></a>22. 想清空 <code>INPUT</code> 链所有规则，命令怎么写？</h3><p>要求：只清空 <code>INPUT</code> 链，不清空所有链。</p>
+<h3 id="23-想看当前所有-iptables-规则，适合备份或排障，应该用什么命令？"><a href="#23-想看当前所有-iptables-规则，适合备份或排障，应该用什么命令？" class="headerlink" title="23. 想看当前所有 iptables 规则，适合备份或排障，应该用什么命令？"></a>23. 想看当前所有 iptables 规则，适合备份或排障，应该用什么命令？</h3><p>要求：写出命令。</p>
+<h2 id="五、排错题"><a href="#五、排错题" class="headerlink" title="五、排错题"></a>五、排错题</h2><h3 id="24-下面命令有什么问题？"><a href="#24-下面命令有什么问题？" class="headerlink" title="24. 下面命令有什么问题？"></a>24. 下面命令有什么问题？</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p tcp -dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="25-下面命令有什么问题？"><a href="#25-下面命令有什么问题？" class="headerlink" title="25. 下面命令有什么问题？"></a>25. 下面命令有什么问题？</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -P INPUT -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="26-下面命令有什么问题？"><a href="#26-下面命令有什么问题？" class="headerlink" title="26. 下面命令有什么问题？"></a>26. 下面命令有什么问题？</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -A INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="27-下面命令有什么风险？"><a href="#27-下面命令有什么风险？" class="headerlink" title="27. 下面命令有什么风险？"></a>27. 下面命令有什么风险？</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h2 id="参考答案"><a href="#参考答案" class="headerlink" title="参考答案"></a>参考答案</h2><h3 id="1-iptables-和-netfilter"><a href="#1-iptables-和-netfilter" class="headerlink" title="1. iptables 和 netfilter"></a>1. iptables 和 netfilter</h3><p>iptables 是用户态命令行工具，用来写规则；netfilter 是 Linux 内核里的包处理框架，真正根据规则处理数据包。</p>
+<h3 id="2-三类流量对应链"><a href="#2-三类流量对应链" class="headerlink" title="2. 三类流量对应链"></a>2. 三类流量对应链</h3><ol>
+<li>别人访问本机服务：<code>INPUT</code></li>
+<li>本机主动访问外部服务：<code>OUTPUT</code></li>
+<li>Linux 机器作为网关转发流量：<code>FORWARD</code></li>
+</ol>
+<h3 id="3-filter-表和-nat-表"><a href="#3-filter-表和-nat-表" class="headerlink" title="3. filter 表和 nat 表"></a>3. filter 表和 nat 表</h3><p><code>filter</code> 表主要做过滤，决定包能不能通过；<code>nat</code> 表主要做地址转换，比如 DNAT、SNAT、MASQUERADE。</p>
+<h3 id="4-规则顺序"><a href="#4-规则顺序" class="headerlink" title="4. 规则顺序"></a>4. 规则顺序</h3><p>iptables 在同一条链里从上往下匹配规则。前面的规则先命中，后面的规则可能就没有机会执行。</p>
+<h3 id="5-DROP-和-REJECT"><a href="#5-DROP-和-REJECT" class="headerlink" title="5. DROP 和 REJECT"></a>5. DROP 和 REJECT</h3><p><code>DROP</code> 是直接丢弃，不给对方响应；<code>REJECT</code> 是拒绝，并返回错误信息。</p>
+<h3 id="6-查看-INPUT-链规则编号"><a href="#6-查看-INPUT-链规则编号" class="headerlink" title="6. 查看 INPUT 链规则编号"></a>6. 查看 INPUT 链规则编号</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-丢弃-TCP-80"><a href="#7-丢弃-TCP-80" class="headerlink" title="7. 丢弃 TCP 80"></a>7. 丢弃 TCP 80</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-允许-UDP-53"><a href="#8-允许-UDP-53" class="headerlink" title="8. 允许 UDP 53"></a>8. 允许 UDP 53</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p udp --dport 53 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-设置-INPUT-默认策略"><a href="#9-设置-INPUT-默认策略" class="headerlink" title="9. 设置 INPUT 默认策略"></a>9. 设置 INPUT 默认策略</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="10-删除-INPUT-第-8-条规则"><a href="#10-删除-INPUT-第-8-条规则" class="headerlink" title="10. 删除 INPUT 第 8 条规则"></a>10. 删除 INPUT 第 8 条规则</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -D INPUT 8</span><br></pre></td></tr></table></figure>
+
+<h3 id="11-插入-UDP-54-规则"><a href="#11-插入-UDP-54-规则" class="headerlink" title="11. 插入 UDP 54 规则"></a>11. 插入 UDP 54 规则</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -I INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="12-放行已有连接回包"><a href="#12-放行已有连接回包" class="headerlink" title="12. 放行已有连接回包"></a>12. 放行已有连接回包</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="13-默认表"><a href="#13-默认表" class="headerlink" title="13. 默认表"></a>13. 默认表</h3><p>对。不写 <code>-t</code> 时默认操作 <code>filter</code> 表。</p>
+<h3 id="14-插入规则"><a href="#14-插入规则" class="headerlink" title="14. 插入规则"></a>14. 插入规则</h3><p>错。插入规则要用 <code>-I INPUT 4</code>，不是 <code>-A INPUT 4</code>。</p>
+<h3 id="15-默认策略优先级"><a href="#15-默认策略优先级" class="headerlink" title="15. 默认策略优先级"></a>15. 默认策略优先级</h3><p>错。默认策略是在链里没有任何规则匹配时才执行，可以理解为优先级最低。</p>
+<h3 id="16-出站请求的回包"><a href="#16-出站请求的回包" class="headerlink" title="16. 出站请求的回包"></a>16. 出站请求的回包</h3><p>对。本机请求从 <code>OUTPUT</code> 出去，对方返回的数据包会进入本机，所以可能经过 <code>INPUT</code> 链。</p>
+<h3 id="17-LOG-动作"><a href="#17-LOG-动作" class="headerlink" title="17. LOG 动作"></a>17. LOG 动作</h3><p>对。<code>LOG</code> 只记录日志，不会直接放行或丢弃，后续通常还要接 <code>ACCEPT</code> 或 <code>DROP</code> 规则。</p>
+<h3 id="18-默认拒绝入站，只允许-UDP-53"><a href="#18-默认拒绝入站，只允许-UDP-53" class="headerlink" title="18. 默认拒绝入站，只允许 UDP 53"></a>18. 默认拒绝入站，只允许 UDP 53</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT</span><br><span class="line">iptables -A INPUT -i lo -j ACCEPT</span><br><span class="line">iptables -A INPUT -p udp --dport 53 -j ACCEPT</span><br><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="19-阻断-TCP-8080"><a href="#19-阻断-TCP-8080" class="headerlink" title="19. 阻断 TCP 8080"></a>19. 阻断 TCP 8080</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 8080 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="20-删除前查看编号"><a href="#20-删除前查看编号" class="headerlink" title="20. 删除前查看编号"></a>20. 删除前查看编号</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -L INPUT -n -v --line-numbers</span><br></pre></td></tr></table></figure>
+
+<h3 id="21-先放行-SSH"><a href="#21-先放行-SSH" class="headerlink" title="21. 先放行 SSH"></a>21. 先放行 SSH</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 22 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<p>如果是远程操作，先放行 SSH 再设置 <code>INPUT DROP</code>，否则可能把自己的 SSH 连接阻断。</p>
+<h3 id="22-清空-INPUT-链"><a href="#22-清空-INPUT-链" class="headerlink" title="22. 清空 INPUT 链"></a>22. 清空 INPUT 链</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -F INPUT</span><br></pre></td></tr></table></figure>
+
+<p>如果要指定表，也可以写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -F INPUT</span><br></pre></td></tr></table></figure>
+
+<h3 id="23-查看完整规则"><a href="#23-查看完整规则" class="headerlink" title="23. 查看完整规则"></a>23. 查看完整规则</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables-save</span><br></pre></td></tr></table></figure>
+
+<h3 id="24-dport-问题"><a href="#24-dport-问题" class="headerlink" title="24. -dport 问题"></a>24. <code>-dport</code> 问题</h3><p><code>dport</code> 前面少了一个 <code>-</code>，应该写成 <code>--dport</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -A INPUT -p tcp --dport 80 -j DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="25-默认策略命令问题"><a href="#25-默认策略命令问题" class="headerlink" title="25. 默认策略命令问题"></a>25. 默认策略命令问题</h3><p><code>-P</code> 后面直接跟链名和策略，不需要 <code>-j</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -P INPUT DROP</span><br></pre></td></tr></table></figure>
+
+<h3 id="26-插入规则命令问题"><a href="#26-插入规则命令问题" class="headerlink" title="26. 插入规则命令问题"></a>26. 插入规则命令问题</h3><p><code>-A</code> 是追加到末尾，不能指定插入位置。要插入到第 4 条前面，应该用 <code>-I</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -t filter -I INPUT 4 -p udp --dport 54 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<h3 id="27-设置默认-DROP-的风险"><a href="#27-设置默认-DROP-的风险" class="headerlink" title="27. 设置默认 DROP 的风险"></a>27. 设置默认 DROP 的风险</h3><p>如果远程机器没有先放行 SSH、已有连接、本机回环等流量，直接执行 <code>iptables -P INPUT DROP</code> 可能导致 SSH 断开，自己连不回去。</p>
+<h2 id="自测评分"><a href="#自测评分" class="headerlink" title="自测评分"></a>自测评分</h2><ul>
+<li>0-10 题：还需要回去重看基础概念。</li>
+<li>11-20 题：已经知道常用命令，但需要多练习场景题。</li>
+<li>21-27 题：基础命令基本掌握，可以继续学习 NAT、端口转发和持久化规则。</li>
+</ul>
+<p>如果能不看答案写出第 18 题和第 21 题，说明你已经掌握 iptables 入门阶段最容易踩坑的部分。</p>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-1"><a class="top-box-link" href="#iptables-%E6%B5%8B%E8%AF%95%E7%AF%87"><span class="top-box-text">iptables 测试篇</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%80%E3%80%81%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5%E9%A2%98"><span class="top-box-text">一、基础概念题</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-iptables-%E5%92%8C-netfilter-%E5%88%86%E5%88%AB%E6%98%AF%E4%BB%80%E4%B9%88%EF%BC%9F"><span class="top-box-text">1. iptables 和 netfilter 分别是什么？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-%E4%B8%8B%E9%9D%A2%E4%B8%89%E7%B1%BB%E6%B5%81%E9%87%8F%E5%88%86%E5%88%AB%E4%B8%BB%E8%A6%81%E7%9C%8B%E5%93%AA%E6%9D%A1%E9%93%BE%EF%BC%9F"><span class="top-box-text">2. 下面三类流量分别主要看哪条链？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-filter-%E8%A1%A8%E4%B8%BB%E8%A6%81%E7%94%A8%E6%9D%A5%E5%81%9A%E4%BB%80%E4%B9%88%EF%BC%9F"><span class="top-box-text">3. filter 表主要用来做什么？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#4-iptables-%E8%A7%84%E5%88%99%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%B3%A8%E6%84%8F%E9%A1%BA%E5%BA%8F%EF%BC%9F"><span class="top-box-text">4. iptables 规则为什么要注意顺序？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#5-DROP-%E5%92%8C-REJECT-%E6%9C%89%E4%BB%80%E4%B9%88%E5%8C%BA%E5%88%AB%EF%BC%9F"><span class="top-box-text">5. DROP 和 REJECT 有什么区别？</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BA%8C%E3%80%81%E5%91%BD%E4%BB%A4%E5%A1%AB%E7%A9%BA%E9%A2%98"><span class="top-box-text">二、命令填空题</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#6-%E6%9F%A5%E7%9C%8B-filter-%E8%A1%A8-INPUT-%E9%93%BE%E8%A7%84%E5%88%99%EF%BC%8C%E5%B9%B6%E6%98%BE%E7%A4%BA%E8%A7%84%E5%88%99%E7%BC%96%E5%8F%B7"><span class="top-box-text">6. 查看 filter 表 INPUT 链规则，并显示规则编号</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#7-%E4%B8%A2%E5%BC%83%E8%AE%BF%E9%97%AE%E6%9C%AC%E6%9C%BA-TCP-80-%E7%AB%AF%E5%8F%A3%E7%9A%84%E6%95%B0%E6%8D%AE%E5%8C%85"><span class="top-box-text">7. 丢弃访问本机 TCP 80 端口的数据包</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#8-%E5%85%81%E8%AE%B8%E8%AE%BF%E9%97%AE%E6%9C%AC%E6%9C%BA-UDP-53-%E7%AB%AF%E5%8F%A3"><span class="top-box-text">8. 允许访问本机 UDP 53 端口</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#9-%E6%8A%8A-INPUT-%E9%93%BE%E9%BB%98%E8%AE%A4%E7%AD%96%E7%95%A5%E8%AE%BE%E7%BD%AE%E4%B8%BA%E4%B8%A2%E5%BC%83"><span class="top-box-text">9. 把 INPUT 链默认策略设置为丢弃</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#10-%E5%88%A0%E9%99%A4-INPUT-%E9%93%BE%E7%AC%AC-8-%E6%9D%A1%E8%A7%84%E5%88%99"><span class="top-box-text">10. 删除 INPUT 链第 8 条规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#11-%E5%9C%A8-INPUT-%E9%93%BE%E7%AC%AC-4-%E6%9D%A1%E8%A7%84%E5%88%99%E5%89%8D%E6%8F%92%E5%85%A5%E4%B8%80%E6%9D%A1%E5%85%81%E8%AE%B8-UDP-54-%E7%9A%84%E8%A7%84%E5%88%99"><span class="top-box-text">11. 在 INPUT 链第 4 条规则前插入一条允许 UDP 54 的规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#12-%E6%94%BE%E8%A1%8C%E5%B7%B2%E6%9C%89%E8%BF%9E%E6%8E%A5%E5%92%8C%E7%9B%B8%E5%85%B3%E8%BF%9E%E6%8E%A5%E7%9A%84%E5%9B%9E%E5%8C%85"><span class="top-box-text">12. 放行已有连接和相关连接的回包</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%89%E3%80%81%E5%88%A4%E6%96%AD%E9%A2%98"><span class="top-box-text">三、判断题</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#13-%E4%B8%8D%E5%86%99-t-%E5%8F%82%E6%95%B0%E6%97%B6%EF%BC%8Ciptables-%E9%BB%98%E8%AE%A4%E6%93%8D%E4%BD%9C-filter-%E8%A1%A8%E3%80%82"><span class="top-box-text">13. 不写 -t 参数时，iptables 默认操作 filter 表。</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#14-A-INPUT-4-%E8%A1%A8%E7%A4%BA%E6%8A%8A%E8%A7%84%E5%88%99%E6%8F%92%E5%85%A5%E5%88%B0-INPUT-%E9%93%BE%E7%AC%AC-4-%E6%9D%A1%E5%89%8D%E9%9D%A2%E3%80%82"><span class="top-box-text">14. -A INPUT 4 表示把规则插入到 INPUT 链第 4 条前面。</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#15-P-INPUT-DROP-%E8%AE%BE%E7%BD%AE%E7%9A%84%E6%98%AF-INPUT-%E9%93%BE%E7%9A%84%E9%BB%98%E8%AE%A4%E7%AD%96%E7%95%A5%EF%BC%8C%E5%AE%83%E4%BC%9A%E6%8E%92%E5%9C%A8%E6%89%80%E6%9C%89%E8%A7%84%E5%88%99%E4%B9%8B%E5%89%8D%E4%BC%98%E5%85%88%E5%8C%B9%E9%85%8D%E3%80%82"><span class="top-box-text">15. -P INPUT DROP 设置的是 INPUT 链的默认策略，它会排在所有规则之前优先匹配。</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#16-%E6%9C%AC%E6%9C%BA%E4%B8%BB%E5%8A%A8%E8%AE%BF%E9%97%AE%E5%A4%96%E9%83%A8%E6%9C%8D%E5%8A%A1%E6%97%B6%EF%BC%8C%E5%A4%96%E9%83%A8%E8%BF%94%E5%9B%9E%E7%9A%84%E6%95%B0%E6%8D%AE%E5%8C%85%E5%8F%AF%E8%83%BD%E4%BC%9A%E8%BF%9B%E5%85%A5-INPUT-%E9%93%BE%E3%80%82"><span class="top-box-text">16. 本机主动访问外部服务时，外部返回的数据包可能会进入 INPUT 链。</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#17-LOG-%E5%8A%A8%E4%BD%9C%E4%BC%9A%E8%AE%B0%E5%BD%95%E6%97%A5%E5%BF%97%EF%BC%8C%E7%84%B6%E5%90%8E%E7%BB%A7%E7%BB%AD%E5%8C%B9%E9%85%8D%E5%90%8E%E7%BB%AD%E8%A7%84%E5%88%99%E3%80%82"><span class="top-box-text">17. LOG 动作会记录日志，然后继续匹配后续规则。</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%9B%9B%E3%80%81%E5%9C%BA%E6%99%AF%E9%A2%98"><span class="top-box-text">四、场景题</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#18-%E9%BB%98%E8%AE%A4%E6%8B%92%E7%BB%9D%E5%85%A8%E9%83%A8%E5%85%A5%E7%AB%99%EF%BC%8C%E5%8F%AA%E5%85%81%E8%AE%B8-UDP-53"><span class="top-box-text">18. 默认拒绝全部入站，只允许 UDP 53</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#19-%E5%8F%AA%E4%B8%B4%E6%97%B6%E9%98%BB%E6%96%AD%E5%88%AB%E4%BA%BA%E8%AE%BF%E9%97%AE%E6%9C%AC%E6%9C%BA-8080-%E7%AB%AF%E5%8F%A3"><span class="top-box-text">19. 只临时阻断别人访问本机 8080 端口</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#20-%E6%9F%A5%E7%9C%8B%E8%A7%84%E5%88%99%E6%97%B6%E5%8F%91%E7%8E%B0%E4%B8%8D%E7%9F%A5%E9%81%93%E8%AF%A5%E5%88%A0%E9%99%A4%E5%93%AA%E6%9D%A1%EF%BC%8C%E5%BA%94%E8%AF%A5%E5%85%88%E6%89%A7%E8%A1%8C%E4%BB%80%E4%B9%88%E5%91%BD%E4%BB%A4%EF%BC%9F"><span class="top-box-text">20. 查看规则时发现不知道该删除哪条，应该先执行什么命令？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#21-%E6%83%B3%E5%85%81%E8%AE%B8-SSH-%E8%BF%9E%E6%8E%A5%E5%90%8E%E5%86%8D%E8%AE%BE%E7%BD%AE%E9%BB%98%E8%AE%A4%E6%8B%92%E7%BB%9D%E5%85%A5%E7%AB%99%EF%BC%8C%E5%BA%94%E8%AF%A5%E5%85%88%E5%81%9A%E4%BB%80%E4%B9%88%EF%BC%9F"><span class="top-box-text">21. 想允许 SSH 连接后再设置默认拒绝入站，应该先做什么？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#22-%E6%83%B3%E6%B8%85%E7%A9%BA-INPUT-%E9%93%BE%E6%89%80%E6%9C%89%E8%A7%84%E5%88%99%EF%BC%8C%E5%91%BD%E4%BB%A4%E6%80%8E%E4%B9%88%E5%86%99%EF%BC%9F"><span class="top-box-text">22. 想清空 INPUT 链所有规则，命令怎么写？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#23-%E6%83%B3%E7%9C%8B%E5%BD%93%E5%89%8D%E6%89%80%E6%9C%89-iptables-%E8%A7%84%E5%88%99%EF%BC%8C%E9%80%82%E5%90%88%E5%A4%87%E4%BB%BD%E6%88%96%E6%8E%92%E9%9A%9C%EF%BC%8C%E5%BA%94%E8%AF%A5%E7%94%A8%E4%BB%80%E4%B9%88%E5%91%BD%E4%BB%A4%EF%BC%9F"><span class="top-box-text">23. 想看当前所有 iptables 规则，适合备份或排障，应该用什么命令？</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BA%94%E3%80%81%E6%8E%92%E9%94%99%E9%A2%98"><span class="top-box-text">五、排错题</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#24-%E4%B8%8B%E9%9D%A2%E5%91%BD%E4%BB%A4%E6%9C%89%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="top-box-text">24. 下面命令有什么问题？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#25-%E4%B8%8B%E9%9D%A2%E5%91%BD%E4%BB%A4%E6%9C%89%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="top-box-text">25. 下面命令有什么问题？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#26-%E4%B8%8B%E9%9D%A2%E5%91%BD%E4%BB%A4%E6%9C%89%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="top-box-text">26. 下面命令有什么问题？</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#27-%E4%B8%8B%E9%9D%A2%E5%91%BD%E4%BB%A4%E6%9C%89%E4%BB%80%E4%B9%88%E9%A3%8E%E9%99%A9%EF%BC%9F"><span class="top-box-text">27. 下面命令有什么风险？</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E7%AD%94%E6%A1%88"><span class="top-box-text">参考答案</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-iptables-%E5%92%8C-netfilter"><span class="top-box-text">1. iptables 和 netfilter</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-%E4%B8%89%E7%B1%BB%E6%B5%81%E9%87%8F%E5%AF%B9%E5%BA%94%E9%93%BE"><span class="top-box-text">2. 三类流量对应链</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-filter-%E8%A1%A8%E5%92%8C-nat-%E8%A1%A8"><span class="top-box-text">3. filter 表和 nat 表</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#4-%E8%A7%84%E5%88%99%E9%A1%BA%E5%BA%8F"><span class="top-box-text">4. 规则顺序</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#5-DROP-%E5%92%8C-REJECT"><span class="top-box-text">5. DROP 和 REJECT</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#6-%E6%9F%A5%E7%9C%8B-INPUT-%E9%93%BE%E8%A7%84%E5%88%99%E7%BC%96%E5%8F%B7"><span class="top-box-text">6. 查看 INPUT 链规则编号</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#7-%E4%B8%A2%E5%BC%83-TCP-80"><span class="top-box-text">7. 丢弃 TCP 80</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#8-%E5%85%81%E8%AE%B8-UDP-53"><span class="top-box-text">8. 允许 UDP 53</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#9-%E8%AE%BE%E7%BD%AE-INPUT-%E9%BB%98%E8%AE%A4%E7%AD%96%E7%95%A5"><span class="top-box-text">9. 设置 INPUT 默认策略</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#10-%E5%88%A0%E9%99%A4-INPUT-%E7%AC%AC-8-%E6%9D%A1%E8%A7%84%E5%88%99"><span class="top-box-text">10. 删除 INPUT 第 8 条规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#11-%E6%8F%92%E5%85%A5-UDP-54-%E8%A7%84%E5%88%99"><span class="top-box-text">11. 插入 UDP 54 规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#12-%E6%94%BE%E8%A1%8C%E5%B7%B2%E6%9C%89%E8%BF%9E%E6%8E%A5%E5%9B%9E%E5%8C%85"><span class="top-box-text">12. 放行已有连接回包</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#13-%E9%BB%98%E8%AE%A4%E8%A1%A8"><span class="top-box-text">13. 默认表</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#14-%E6%8F%92%E5%85%A5%E8%A7%84%E5%88%99"><span class="top-box-text">14. 插入规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#15-%E9%BB%98%E8%AE%A4%E7%AD%96%E7%95%A5%E4%BC%98%E5%85%88%E7%BA%A7"><span class="top-box-text">15. 默认策略优先级</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#16-%E5%87%BA%E7%AB%99%E8%AF%B7%E6%B1%82%E7%9A%84%E5%9B%9E%E5%8C%85"><span class="top-box-text">16. 出站请求的回包</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#17-LOG-%E5%8A%A8%E4%BD%9C"><span class="top-box-text">17. LOG 动作</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#18-%E9%BB%98%E8%AE%A4%E6%8B%92%E7%BB%9D%E5%85%A5%E7%AB%99%EF%BC%8C%E5%8F%AA%E5%85%81%E8%AE%B8-UDP-53"><span class="top-box-text">18. 默认拒绝入站，只允许 UDP 53</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#19-%E9%98%BB%E6%96%AD-TCP-8080"><span class="top-box-text">19. 阻断 TCP 8080</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#20-%E5%88%A0%E9%99%A4%E5%89%8D%E6%9F%A5%E7%9C%8B%E7%BC%96%E5%8F%B7"><span class="top-box-text">20. 删除前查看编号</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#21-%E5%85%88%E6%94%BE%E8%A1%8C-SSH"><span class="top-box-text">21. 先放行 SSH</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#22-%E6%B8%85%E7%A9%BA-INPUT-%E9%93%BE"><span class="top-box-text">22. 清空 INPUT 链</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#23-%E6%9F%A5%E7%9C%8B%E5%AE%8C%E6%95%B4%E8%A7%84%E5%88%99"><span class="top-box-text">23. 查看完整规则</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#24-dport-%E9%97%AE%E9%A2%98"><span class="top-box-text">24. -dport 问题</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#25-%E9%BB%98%E8%AE%A4%E7%AD%96%E7%95%A5%E5%91%BD%E4%BB%A4%E9%97%AE%E9%A2%98"><span class="top-box-text">25. 默认策略命令问题</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#26-%E6%8F%92%E5%85%A5%E8%A7%84%E5%88%99%E5%91%BD%E4%BB%A4%E9%97%AE%E9%A2%98"><span class="top-box-text">26. 插入规则命令问题</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#27-%E8%AE%BE%E7%BD%AE%E9%BB%98%E8%AE%A4-DROP-%E7%9A%84%E9%A3%8E%E9%99%A9"><span class="top-box-text">27. 设置默认 DROP 的风险</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E8%87%AA%E6%B5%8B%E8%AF%84%E5%88%86"><span class="top-box-text">自测评分</span></a></li></ol></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/06/06/iptables/">
+          <h3 class="post-title">
+            
+            下一篇：每天学习一个命令: iptables
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+
