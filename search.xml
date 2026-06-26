@@ -1,6 +1,469 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>2026 我的 macOS 软件与开发环境安装清单</title>
+    <url>/2026/06/21/2026%E6%88%91%E7%9A%84macOS%E8%BD%AF%E4%BB%B6%E4%B8%8E%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83%E5%AE%89%E8%A3%85%E6%B8%85%E5%8D%95/</url>
+    <content><![CDATA[<h1 id="2026-我的-macOS-软件与开发环境安装清单"><a href="#2026-我的-macOS-软件与开发环境安装清单" class="headerlink" title="2026 我的 macOS 软件与开发环境安装清单"></a>2026 我的 macOS 软件与开发环境安装清单</h1><p>我的第一台 Mac 是 2020 款 Intel i5、16G 内存的 MacBook Pro。刚开始用的时候还挺新鲜，但几年后同时开两个 PyCharm，风扇就开始嗷嗷叫，键盘也烫手。我不太喜欢风扇噪音，也不喜欢手边一直热乎乎的机器。</p>
+<p>2021 年左右，我看了 PegasusWang 的 <a href="https://www.imooc.com/learn/1129">玩转 Vim 从放弃到爱不释手</a>。跟完整个课程后，我发现自己挺喜欢 Vim，也喜欢 CLI、快捷键和终端工作流带来的效率感。那段时间我跟着教程和大佬们尝试安装了很多软件，后来反而有点失控：电脑里到底装了哪些东西、哪些还在用、哪些只是当年试了一下，我自己也说不清。</p>
+<p>再加上曾经手欠升级 beta 版 macOS，结果系统直接开不了机，我就开始觉得：软件环境也需要定期断舍离。以后计划每年重新安装一次操作系统，顺便重新审视自己真正需要的软件和开发环境。这篇文章就是 2026 年这一轮 macOS 软件清单，带删除线的是曾经用过、但当前不准备优先安装的软件。</p>
+<h2 id="使用约定"><a href="#使用约定" class="headerlink" title="使用约定"></a>使用约定</h2><ul>
+<li><strong>必装</strong>：新机器会优先安装。</li>
+<li><strong>按需</strong>：用到对应场景再安装。</li>
+<li><strong>暂不安装</strong>：保留记录，当前不推荐优先安装。</li>
+</ul>
+<h2 id="基础软件"><a href="#基础软件" class="headerlink" title="基础软件"></a>基础软件</h2><table>
+<thead>
+<tr>
+<th>软件</th>
+<th>用途</th>
+<th>安装方式</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Clash Verge</td>
+<td>代理客户端</td>
+<td><code>brew install --cask clash-verge-rev</code></td>
+<td>Homebrew cask 是 Clash Verge Rev</td>
+</tr>
+<tr>
+<td>Chrome</td>
+<td>浏览器</td>
+<td><code>brew install --cask google-chrome</code></td>
+<td>主力浏览器</td>
+</tr>
+<tr>
+<td><del>Firefox</del></td>
+<td>浏览器</td>
+<td><code>brew install --cask firefox</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td>SmartProxy</td>
+<td>浏览器代理插件</td>
+<td>浏览器插件商店</td>
+<td>Firefox 可用，Chrome 上有代理 bug</td>
+</tr>
+</tbody></table>
+<h2 id="即时通信"><a href="#即时通信" class="headerlink" title="即时通信"></a>即时通信</h2><table>
+<thead>
+<tr>
+<th>软件</th>
+<th>用途</th>
+<th>安装方式</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>微信</td>
+<td>日常沟通</td>
+<td><code>brew install --cask wechat</code></td>
+<td>必装</td>
+</tr>
+<tr>
+<td>企业微信</td>
+<td>工作沟通</td>
+<td><code>brew install --cask wechatwork</code></td>
+<td>必装</td>
+</tr>
+<tr>
+<td><del>QQ</del></td>
+<td>即时通信</td>
+<td><code>brew install --cask qq</code></td>
+<td>暂不安装</td>
+</tr>
+</tbody></table>
+<h2 id="远程控制"><a href="#远程控制" class="headerlink" title="远程控制"></a>远程控制</h2><table>
+<thead>
+<tr>
+<th>软件</th>
+<th>用途</th>
+<th>安装方式</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ToDesk</td>
+<td>远程控制</td>
+<td>按需下载</td>
+<td>远程桌面备用</td>
+</tr>
+<tr>
+<td>向日葵</td>
+<td>远程控制</td>
+<td><code>brew install --cask awesun</code></td>
+<td>远程桌面备用</td>
+</tr>
+<tr>
+<td><del>Microsoft Remote Desktop for Mac</del></td>
+<td>远程桌面</td>
+<td><code>brew install --cask windows-app</code></td>
+<td>原 cask 已停用，Homebrew 用 Windows App 替代，暂不安装</td>
+</tr>
+</tbody></table>
+<h2 id="AI-工具"><a href="#AI-工具" class="headerlink" title="AI 工具"></a>AI 工具</h2><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+<th>安装方式</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Codex</td>
+<td>AI 编程助手</td>
+<td><code>brew install --cask codex-app</code></td>
+<td>保留</td>
+</tr>
+<tr>
+<td>koe</td>
+<td>语音输入</td>
+<td><code>brew tap owo-network/brew &amp;&amp; brew install owo-network/brew/koe</code></td>
+<td>保留</td>
+</tr>
+<tr>
+<td><del>Claude Code</del></td>
+<td>AI 编程助手</td>
+<td><code>brew install --cask claude-code</code></td>
+<td>仅保留记录</td>
+</tr>
+<tr>
+<td><del>Gemini CLI</del></td>
+<td>AI 命令行助手</td>
+<td><code>brew install gemini-cli</code></td>
+<td>仅保留记录</td>
+</tr>
+<tr>
+<td><del>cc-switch</del></td>
+<td>All-in-One assistant tool</td>
+<td><code>brew tap farion1231/ccswitch &amp;&amp; brew install --cask cc-switch</code></td>
+<td>仅保留记录</td>
+</tr>
+</tbody></table>
+<h2 id="效率工具"><a href="#效率工具" class="headerlink" title="效率工具"></a>效率工具</h2><table>
+<thead>
+<tr>
+<th>软件</th>
+<th>用途</th>
+<th>安装方式</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Magnet</td>
+<td>窗口管理</td>
+<td><a href="https://magnet.crowdcafe.com/">官网</a></td>
+<td>必装</td>
+</tr>
+<tr>
+<td>Dozer</td>
+<td>隐藏菜单栏图标</td>
+<td><a href="https://github.com/Mortennn/Dozer">GitHub</a></td>
+<td>当前 Homebrew 未查到 cask</td>
+</tr>
+<tr>
+<td><del>Dash</del></td>
+<td>文档查询</td>
+<td><code>brew install --cask dash</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>Moonlight</del></td>
+<td>远程连接 PC</td>
+<td><code>brew install --cask moonlight</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>Alfred</del></td>
+<td>快速搜索</td>
+<td><code>brew install --cask alfred</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>yabai</del></td>
+<td>窗口管理</td>
+<td>暂不安装</td>
+<td>快捷键管理窗口</td>
+</tr>
+<tr>
+<td><del>Aerial</del></td>
+<td>屏保</td>
+<td><code>brew install --cask aerial</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>AlDente</del></td>
+<td>电池管理</td>
+<td><code>brew install --cask aldente</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>Kindle</del></td>
+<td>阅读</td>
+<td><a href="https://www.amazon.com/b?ie=UTF8&node=16571048011">Amazon</a></td>
+<td>Intel Mac 经常崩</td>
+</tr>
+<tr>
+<td><del>OneSwitch</del></td>
+<td>工具箱</td>
+<td><code>brew install --cask one-switch</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>Stats</del></td>
+<td>系统监控</td>
+<td><code>brew install --cask stats</code></td>
+<td>暂不安装</td>
+</tr>
+</tbody></table>
+<h2 id="Terminal-与开发环境"><a href="#Terminal-与开发环境" class="headerlink" title="Terminal 与开发环境"></a>Terminal 与开发环境</h2><p>这一节按新机器初始化顺序整理，从上到下一项一项装。</p>
+<h3 id="1-安装-Ghostty"><a href="#1-安装-Ghostty" class="headerlink" title="1. 安装 Ghostty"></a>1. 安装 Ghostty</h3><p>先装终端模拟器，后面所有命令都在 Ghostty 里执行。</p>
+<ul>
+<li><a href="https://ghostty.org/download">Ghostty 官网下载</a></li>
+<li>macOS 可以直接下载 <code>.dmg</code> 安装。</li>
+<li>已经装好 Homebrew 的机器，也可以使用：</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install --cask ghostty</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-安装-Homebrew"><a href="#2-安装-Homebrew" class="headerlink" title="2. 安装 Homebrew"></a>2. 安装 Homebrew</h3><p><a href="https://brew.sh/">Homebrew</a> 是 macOS 上最常用的软件包管理工具。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">/bin/bash -c <span class="string">&quot;<span class="subst">$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>安装完成后，根据终端提示把 Homebrew 写入 shell 环境变量。</p>
+<h3 id="3-安装-VS-Code"><a href="#3-安装-VS-Code" class="headerlink" title="3. 安装 VS Code"></a>3. 安装 VS Code</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install --cask visual-studio-code</span><br></pre></td></tr></table></figure>
+
+<p>安装后打开命令面板 <code>Cmd + Shift + P</code>，执行 <code>Shell Command: Install &#39;code&#39; command in PATH</code>。之后就可以在终端里用 <code>code .</code> 打开当前目录。</p>
+<h3 id="4-配置-zsh-与-oh-my-zsh"><a href="#4-配置-zsh-与-oh-my-zsh" class="headerlink" title="4. 配置 zsh 与 oh-my-zsh"></a>4. 配置 zsh 与 oh-my-zsh</h3><p><a href="https://ohmyz.sh/">oh-my-zsh</a></p>
+<p>如果需要 Homebrew 版本的 zsh：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install zsh</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sh -c <span class="string">&quot;<span class="subst">$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-配置-powerlevel10k"><a href="#5-配置-powerlevel10k" class="headerlink" title="5. 配置 powerlevel10k"></a>5. 配置 powerlevel10k</h3><p><a href="https://github.com/romkatv/powerlevel10k#meslo-nerd-font-patched-for-powerlevel10k">powerlevel10k</a></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install powerlevel10k</span><br></pre></td></tr></table></figure>
+
+<p>先安装 Meslo Nerd Font patched 字体，再按 powerlevel10k 文档配置主题。</p>
+<h3 id="6-配置-zplug"><a href="#6-配置-zplug" class="headerlink" title="6. 配置 zplug"></a>6. 配置 zplug</h3><p><a href="https://github.com/zplug/zplug">zplug</a></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install zplug</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-安装-tmux-并配置插件"><a href="#7-安装-tmux-并配置插件" class="headerlink" title="7. 安装 tmux 并配置插件"></a>7. 安装 tmux 并配置插件</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install tmux</span><br></pre></td></tr></table></figure>
+
+<p>常用配置：</p>
+<ul>
+<li><a href="https://github.com/gpakosz/.tmux">gpakosz&#x2F;.tmux</a></li>
+<li><a href="https://github.com/tmux-plugins/tpm">tpm</a></li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">git <span class="built_in">clone</span> https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-安装-neovim"><a href="#8-安装-neovim" class="headerlink" title="8. 安装 neovim"></a>8. 安装 neovim</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install neovim</span><br></pre></td></tr></table></figure>
+
+<p>曾经使用过：</p>
+<ul>
+<li><del>packer.nvim</del></li>
+</ul>
+<h3 id="9-其他按需工具"><a href="#9-其他按需工具" class="headerlink" title="9. 其他按需工具"></a>9. 其他按需工具</h3><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+<th>安装方式</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Tailscale</td>
+<td>组网</td>
+<td><code>brew install --cask tailscale</code></td>
+<td>远程访问机器时使用</td>
+</tr>
+<tr>
+<td>EasyTier</td>
+<td>组网 &#x2F; P2P VPN</td>
+<td><code>brew install --cask easytier-gui</code></td>
+<td>Tailscale 之外的去中心化组网方案</td>
+</tr>
+<tr>
+<td><del>ipython</del></td>
+<td>Python REPL</td>
+<td><code>brew install ipython</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>tldr</del></td>
+<td>命令速查</td>
+<td><code>brew install tldr</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>when-changed</del></td>
+<td>文件变化监听</td>
+<td><a href="https://github.com/joh/when-changed">GitHub</a></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>pgcli</del></td>
+<td>PostgreSQL CLI</td>
+<td><code>brew install pgcli</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>pyenv</del></td>
+<td>Python 版本管理</td>
+<td><code>brew install pyenv</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>pyenv-virtualenv</del></td>
+<td>Python 虚拟环境</td>
+<td><code>brew install pyenv-virtualenv</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>black</del></td>
+<td>Python 格式化</td>
+<td><code>brew install black</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>flake8</del></td>
+<td>Python lint</td>
+<td><code>brew install flake8</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>pytest</del></td>
+<td>Python 测试</td>
+<td><code>brew install pytest</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>stylua</del></td>
+<td>Lua 格式化</td>
+<td><code>brew install stylua</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>ripgrep</del></td>
+<td>搜索工具</td>
+<td><code>brew install ripgrep</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>yadm</del></td>
+<td>dotfiles 管理</td>
+<td><code>brew install yadm</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>graphviz</del></td>
+<td>图形可视化</td>
+<td><code>brew install graphviz</code></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>eternal terminal</del></td>
+<td>远程终端</td>
+<td><a href="https://volect.com/posts/guide-to-et-tunnels/">使用指南</a></td>
+<td>暂不安装</td>
+</tr>
+<tr>
+<td><del>httpie</del></td>
+<td>HTTP CLI</td>
+<td><code>brew install httpie</code></td>
+<td>暂不安装</td>
+</tr>
+</tbody></table>
+<h3 id="10-最后安装-CLI-与容器工具"><a href="#10-最后安装-CLI-与容器工具" class="headerlink" title="10. 最后安装 CLI 与容器工具"></a>10. 最后安装 CLI 与容器工具</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">brew install uv</span><br><span class="line">brew install iproute2mac</span><br><span class="line">brew install git-delta</span><br><span class="line">brew install gh</span><br><span class="line">brew install node</span><br><span class="line">brew install mutagen-io/mutagen/mutagen</span><br><span class="line">brew install docker</span><br><span class="line">brew install colima</span><br><span class="line"></span><br><span class="line"><span class="comment"># 首次启动 Colima：给 devcontainer 多一点资源，并使用 macOS VZ</span></span><br><span class="line">colima start --cpu 4 --memory 6 --vm-type vz --mount-type virtiofs</span><br></pre></td></tr></table></figure>
+
+<p>说明：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>uv</td>
+<td>Python 与 MCP 相关工具</td>
+<td></td>
+</tr>
+<tr>
+<td>iproute2mac</td>
+<td>在 macOS 上模拟 Linux <code>ip</code> 命令</td>
+<td></td>
+</tr>
+<tr>
+<td>git-delta</td>
+<td>增强 <code>git diff</code> 显示</td>
+<td></td>
+</tr>
+<tr>
+<td>gh</td>
+<td>GitHub CLI</td>
+<td></td>
+</tr>
+<tr>
+<td>node</td>
+<td>Node.js</td>
+<td>pyright 等工具会用到</td>
+</tr>
+<tr>
+<td>mutagen</td>
+<td>文件同步</td>
+<td></td>
+</tr>
+<tr>
+<td>docker</td>
+<td>Docker CLI</td>
+<td>只安装 CLI，不包含 Docker Desktop</td>
+</tr>
+<tr>
+<td>Colima</td>
+<td>Docker runtime</td>
+<td>当前作为容器运行时，建议 4 CPU &#x2F; 6GiB 内存</td>
+</tr>
+<tr>
+<td><del>OrbStack</del></td>
+<td>虚拟机和容器运行环境</td>
+<td>个人机器可用，企业环境有合规风险，暂不安装</td>
+</tr>
+</tbody></table>
+<p>Colima 备注：</p>
+<ul>
+<li>官方默认 VM 是 2 CPU、2GiB 内存、100GiB 磁盘；跑 devcontainer 时资源偏小，容易卡住。</li>
+<li>Colima 默认 VM type 是 <code>qemu</code>。官方文档里 <code>vz</code> 是 Apple Virtualization Framework，性能更好。</li>
+<li><code>vmType</code> 和 <code>mountType</code> 创建后不可直接修改。如果已经创建过默认实例，需要确认 VM 里没有重要数据后再重建。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">colima stop</span><br><span class="line">colima delete</span><br><span class="line">colima start --cpu 4 --memory 6 --vm-type vz --mount-type virtiofs</span><br></pre></td></tr></table></figure>
+
+<p>后续等 VS Code 对 Apple Container 支持成熟后，再看是否切换容器运行时。</p>
+<h2 id="macOS-好用设置"><a href="#macOS-好用设置" class="headerlink" title="macOS 好用设置"></a>macOS 好用设置</h2><h3 id="多个项目默认用-Tab-打开"><a href="#多个项目默认用-Tab-打开" class="headerlink" title="多个项目默认用 Tab 打开"></a>多个项目默认用 Tab 打开</h3><p>VS Code、PyCharm 默认经常是一个项目开一个新窗口，窗口多了之后桌面会很乱。把这个选项改成“始终”后，多个项目会尽量像浏览器一样收在同一个窗口的多个 Tab 里，看起来更简洁。</p>
+<p>路径：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">系统设置 -&gt; 桌面与程序坞 -&gt; 窗口与 App -&gt; 打开文稿时首选标签页 -&gt; 始终</span><br></pre></td></tr></table></figure>
+
+<h3 id="关闭-Ctrl-左右方向键切换桌面"><a href="#关闭-Ctrl-左右方向键切换桌面" class="headerlink" title="关闭 Ctrl + 左右方向键切换桌面"></a>关闭 Ctrl + 左右方向键切换桌面</h3><p><code>Ctrl + ←</code> &#x2F; <code>Ctrl + →</code> 默认会切换桌面，容易和 terminal 中的快捷键冲突。</p>
+<p>路径：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">系统设置 -&gt; 键盘 -&gt; 键盘快捷键 -&gt; 调度中心</span><br></pre></td></tr></table></figure>
+
+<p>关闭或修改对应快捷键即可。</p>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>这份清单不是“macOS 必装软件大全”，而是我自己的换机安装记录。优先保证两个目标：</p>
+<ol>
+<li>日常沟通和远程控制能尽快恢复。</li>
+<li>Terminal、Neovim、tmux、Docker 等开发环境能快速进入可用状态。</li>
+</ol>
+<p>后续如果某个工具不再使用，就继续用删除线保留记录；如果变成必装，再挪到对应分类里。</p>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Mac</tag>
+        <tag>工具箱</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>每天学习一个命令: iptables 测试篇</title>
     <url>/2026/06/06/iptables-%E6%B5%8B%E8%AF%95%E7%AF%87/</url>
     <content><![CDATA[<h1 id="iptables-测试篇"><a href="#iptables-测试篇" class="headerlink" title="iptables 测试篇"></a>iptables 测试篇</h1><blockquote>
