@@ -1,0 +1,53 @@
+<mxfile host="app.diagrams.net" agent="Codex">
+  <diagram id="vpc-tailscale-proxy-gateway" name="VPC Proxy 访问 Tailscale 网段">
+    <mxGraphModel dx="1414" dy="795" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1080" pageHeight="520" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#d0d7de;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="450" width="1040" x="20" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="vpc-zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ddf4ff;fillOpacity=45;strokeColor=#54aeef;strokeWidth=2;dashed=1;dashPattern=8 6;arcSize=8;align=left;verticalAlign=top;fontSize=16;fontColor=#0969da;" value="&amp;nbsp;&amp;nbsp;&lt;b&gt;VPC: 172.16.10.0/24&lt;/b&gt;" vertex="1">
+          <mxGeometry height="310" width="560" x="50" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dafbe1;fillOpacity=55;strokeColor=#2da44e;strokeWidth=2;dashed=1;dashPattern=8 6;arcSize=8;align=left;verticalAlign=top;fontSize=16;fontColor=#116329;" value="&amp;nbsp;&amp;nbsp;&lt;b&gt;Tailscale / 远端内网&lt;/b&gt;" vertex="1">
+          <mxGeometry height="310" width="310" x="700" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a-node" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8c5;strokeColor=#9a6700;strokeWidth=1.5;arcSize=8;fontSize=13;fontColor=#24292f;" value="&lt;b&gt;A 节点&lt;/b&gt;&lt;br&gt;172.16.10.8&lt;br&gt;不安装 Tailscale&lt;br&gt;&lt;font color=&quot;#57606a&quot;&gt;route: 192.168.81.0/24 via 172.16.10.3&lt;/font&gt;" vertex="1">
+          <mxGeometry height="112" width="210" x="95" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="proxy" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#0969da;strokeWidth=2;arcSize=8;fontSize=13;fontColor=#24292f;" value="&lt;b&gt;proxy 节点&lt;/b&gt;&lt;br&gt;eth0: 172.16.10.3&lt;br&gt;tailscale0: 100.x.x.x&lt;br&gt;&lt;font color=&quot;#57606a&quot;&gt;ip_forward + FORWARD + MASQUERADE&lt;/font&gt;" vertex="1">
+          <mxGeometry height="132" width="210" x="365" y="165" as="geometry" />
+        </mxCell>
+        <mxCell id="remote-subnet" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2da44e;strokeWidth=2;arcSize=8;fontSize=13;fontColor=#24292f;" value="&lt;b&gt;远端网段&lt;/b&gt;&lt;br&gt;192.168.81.0/24&lt;br&gt;示例目标: 192.168.81.248" vertex="1">
+          <mxGeometry height="96" width="210" x="750" y="178" as="geometry" />
+        </mxCell>
+        <mxCell id="route-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontColor=#57606a;" value="路由到 proxy" vertex="1">
+          <mxGeometry height="24" width="80" x="292" y="141" as="geometry" />
+        </mxCell>
+        <mxCell id="nat-label" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebe9;strokeColor=#cf222e;strokeWidth=1.5;arcSize=8;fontSize=13;fontColor=#24292f;" value="出 tailscale0 前做 NAT&lt;br&gt;src: 172.16.10.8 -&amp;gt; 100.x.x.x" vertex="1">
+          <mxGeometry height="58" width="270" x="410" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="forward-edge" edge="1" parent="1" source="a-node" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0969da;strokeWidth=2;endArrow=block;endFill=1;" target="proxy" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tailscale-edge" edge="1" parent="1" source="proxy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2da44e;strokeWidth=2;endArrow=block;endFill=1;fontSize=13;fontColor=#116329;" target="remote-subnet" value="tailscale0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="return-edge" edge="1" parent="1" source="remote-subnet" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#8c959f;strokeWidth=1.5;endArrow=block;endFill=1;dashed=1;dashPattern=6 6;fontSize=12;fontColor=#57606a;" target="proxy" value="回包只回到 proxy">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="655" y="305" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;fontColor=#24292f;" value="A -&amp;gt; proxy -&amp;gt; tailscale0 -&amp;gt; 远端网段" vertex="1">
+          <mxGeometry height="32" width="590" x="245" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f6f8fa;strokeColor=#d0d7de;arcSize=8;fontSize=13;fontColor=#57606a;" value="NAT 网关模式：远端只看到 proxy 的 Tailscale IP，不需要知道 VPC 内每台 VM 的回程路由。" vertex="1">
+          <mxGeometry height="36" width="790" x="145" y="415" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
