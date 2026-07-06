@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>Tailscale 子网路由导致本地跨网段访问绕路</title>
+<meta name="keywords" content="Tailscale 子网路由导致本地跨网段访问绕路, fuscoyu&#39;s Blog">
+<meta name="description" content="公司通过 Tailscale 做 VPN。本地有两个网段：
+
+172.31.162.0/24
+172.31.164.0/23
+
+本地的 subnet router 会把这两个网段上报到 Tailscale，外地同事依赖它访问本地网络，所以不">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="Tailscale 子网路由导致本地跨网段访问绕路">
+<meta property="og:description" content="公司通过 Tailscale 做 VPN。本地有两个网段：
+
+172.31.162.0/24
+172.31.164.0/23
+
+本地的 subnet router 会把这两个网段上报到 Tailscale，外地同事依赖它访问本地网络，所以不">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">Tailscale 子网路由导致本地跨网段访问绕路</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-07-06</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Network/">
+              Network
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Tailscale/">
+              Tailscale
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <p>公司通过 Tailscale 做 VPN。本地有两个网段：</p>
+<ul>
+<li><code>172.31.162.0/24</code></li>
+<li><code>172.31.164.0/23</code></li>
+</ul>
+<p>本地的 subnet router 会把这两个网段上报到 Tailscale，外地同事依赖它访问本地网络，所以不能删除 subnet router。</p>
+<p>同时，本地客户端也需要通过 Tailscale 访问外地办公网，所以不能关闭 <code>accept-routes</code>。</p>
+<span id="more"></span>
+
+<h2 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h2><p>本地 <code>172.31.164.0/23</code> 访问 <code>172.31.162.0/24</code> 时，本来应该走本地网关：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">172.31.164.x -&gt; 本地网关 -&gt; 172.31.162.x</span><br></pre></td></tr></table></figure>
+
+<p>但实际流量走进了 Tailscale。</p>
+<p>可以用下面的命令确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">route -n get 172.31.162.10</span><br></pre></td></tr></table></figure>
+
+<p>如果出口是 <code>utun</code> 或 <code>tailscale0</code>，说明流量被 Tailscale 接管了。</p>
+<h2 id="原因"><a href="#原因" class="headerlink" title="原因"></a>原因</h2><p>操作系统选路会优先选择最长前缀匹配。</p>
+<p>当路由表里同时存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">default              -&gt; 本地网关</span><br><span class="line">172.31.162.0/24      -&gt; Tailscale</span><br></pre></td></tr></table></figure>
+
+<p>访问 <code>172.31.162.10</code> 时，系统会选择 <code>/24</code>，而不是默认路由。<br>所以这里不是“让默认路由优先”，而是要增加一条比 Tailscale <code>/24</code> 更精确的本地路由。</p>
+<h2 id="解决方式"><a href="#解决方式" class="headerlink" title="解决方式"></a>解决方式</h2><p>保留 Tailscale 的 subnet router，也保留客户端的 <code>accept-routes</code>，只在本地客户端上增加更长前缀的本地路由。</p>
+<p>例如 Tailscale 下发的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">172.31.162.0/24 -&gt; Tailscale</span><br></pre></td></tr></table></figure>
+
+<p>那就在本地客户端增加两条 <code>/25</code> 路由：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">172.31.162.0/25   -&gt; 本地网关</span><br><span class="line">172.31.162.128/25 -&gt; 本地网关</span><br></pre></td></tr></table></figure>
+
+<p>只在确认当前连接的是公司本地网络、且 <code>172.31.165.254</code> 可达时执行。Tailscale 官方也提醒，这类本地路由方案应只用于网络配置明确、固定的环境；移动网络场景要小心误路由。</p>
+<p>临时加路由用 route：（<strong>这是临时方案，持久化需要 networksetup、LaunchDaemon 或公司统一下发。</strong>）</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo route -n add -net 172.31.162.0/25 172.31.165.254</span><br><span class="line">sudo route -n add -net 172.31.162.128/25 172.31.165.254</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>172.31.165.254</code> 是本地网关，按实际环境替换。</p>
+<h2 id="验证"><a href="#验证" class="headerlink" title="验证"></a>验证</h2><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">route -n get 172.31.162.10</span><br></pre></td></tr></table></figure>
+
+<p>期望结果是走本地网关，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">gateway: 172.31.165.254</span><br><span class="line">interface: en0</span><br></pre></td></tr></table></figure>
+
+<p>而不是 <code>utun</code>。</p>
+<p>如果要删除：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo route -n delete -net 172.31.162.0/25</span><br><span class="line">sudo route -n delete -net 172.31.162.128/25</span><br></pre></td></tr></table></figure>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>这个问题的关键不是关闭 Tailscale，而是利用最长前缀匹配：</p>
+<blockquote>
+<p>Tailscale 继续负责公司 VPN；本地访问本地网段时，用更具体的本地路由让流量走本地网关。</p>
+</blockquote>
+<p>更详细的原理和其他系统的处理方式，可以参考官方文档：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://tailscale.com/docs/reference/troubleshooting/network-configuration/lan-traffic-overlapping-subnets">Tailscale: Troubleshoot LAN traffic prioritization issues with overlapping subnet routes</a></li>
+</ul>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%97%AE%E9%A2%98"><span class="top-box-text">问题</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8E%9F%E5%9B%A0"><span class="top-box-text">原因</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E8%A7%A3%E5%86%B3%E6%96%B9%E5%BC%8F"><span class="top-box-text">解决方式</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%AA%8C%E8%AF%81"><span class="top-box-text">验证</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%B0%8F%E7%BB%93"><span class="top-box-text">小结</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/07/05/%E7%94%A8-Wireshark-%E6%8A%93%E5%87%BA%E5%9B%9B%E5%B7%9D%E7%A7%BB%E5%8A%A8-IPTV-%E7%9A%84%E9%A2%91%E9%81%93%E5%88%97%E8%A1%A8/">
+          <h3 class="post-title">
+            
+            下一篇：用 Wireshark 抓出四川移动 IPTV 的频道列表
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+

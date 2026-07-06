@@ -1,6 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>macOS + Clash TUN 导致同网段 ping 不通</title>
+    <url>/2026/07/06/macOS-Clash-TUN-%E5%90%8C%E7%BD%91%E6%AE%B5-ping-%E4%B8%8D%E9%80%9A%E6%8E%92%E6%9F%A5/</url>
+    <content><![CDATA[<p>本机 <code>192.168.50.22</code> 可以 ping 通 <code>192.168.50.25</code>，但 <code>50.25</code> ping 不通本机。</p>
+<p>两台机器明明在同一个 <code>/24</code> 网段里，问题却绕了一圈才显形：Clash TUN 改写了 macOS 路由，导致本机给 <code>50.25</code> 的 ICMP reply 没有直接发给 <code>50.25</code>，而是发给了网关 ImmortalWrt。</p>
+<span id="more"></span>
+
+<h2 id="现象"><a href="#现象" class="headerlink" title="现象"></a>现象</h2><p>网络环境：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">本机:   192.168.50.22/24</span><br><span class="line">对端:   192.168.50.25</span><br><span class="line">网关:   192.168.50.2    ImmortalWrt</span><br><span class="line">网卡:   en0</span><br></pre></td></tr></table></figure>
+
+<p>本机地址看起来没问题：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">ifconfig en0</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">inet 192.168.50.22 netmask 0xffffff00 broadcast 192.168.50.255</span><br><span class="line">status: active</span><br></pre></td></tr></table></figure>
+
+<p>防火墙也不是主因：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Firewall is disabled. (State = 0)</span><br><span class="line">Firewall stealth mode is off</span><br></pre></td></tr></table></figure>
+
+<p>真正反常的是路由。</p>
+<h2 id="第一处异常：同网段流量进了-TUN"><a href="#第一处异常：同网段流量进了-TUN" class="headerlink" title="第一处异常：同网段流量进了 TUN"></a>第一处异常：同网段流量进了 TUN</h2><p>查本机到 <code>50.25</code> 的路由：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">route -n get 192.168.50.25</span><br></pre></td></tr></table></figure>
+
+<p>最初看到的是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">destination: 128.0.0.0</span><br><span class="line">gateway: 198.18.0.1</span><br><span class="line">interface: utun1024</span><br></pre></td></tr></table></figure>
+
+<p><code>192.168.50.25</code> 是同网段地址，正常应该走 <code>en0</code> 直连，不应该进 <code>utun1024</code>。</p>
+<p>再看 Clash Verge &#x2F; mihomo：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">tun:</span></span><br><span class="line">  <span class="attr">auto-route:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">device:</span> <span class="string">utun1024</span></span><br><span class="line">  <span class="attr">route-exclude-address:</span> []</span><br></pre></td></tr></table></figure>
+
+<p>第一层原因很清楚：Clash TUN 的 <code>auto-route</code> 接管了不该接管的 LAN 路由。</p>
+<h2 id="第二处异常：排除-TUN-后仍然走网关"><a href="#第二处异常：排除-TUN-后仍然走网关" class="headerlink" title="第二处异常：排除 TUN 后仍然走网关"></a>第二处异常：排除 TUN 后仍然走网关</h2><p>把 LAN 网段排除出去：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">route-exclude-address:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="number">192.168</span><span class="number">.50</span><span class="number">.0</span><span class="string">/24</span></span><br></pre></td></tr></table></figure>
+
+<p>此后 <code>50.25</code> 不再走 <code>utun1024</code>，但仍然不对：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">destination: default</span><br><span class="line">gateway: 192.168.50.2</span><br><span class="line">interface: en0</span><br></pre></td></tr></table></figure>
+
+<p>这表示回包会从 <code>en0</code> 出去，但二层目标会是网关，而不是 <code>50.25</code>。</p>
+<p>同网段直连时，应该能 ARP 到对端：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">arp -n 192.168.50.25</span><br></pre></td></tr></table></figure>
+
+<p>异常时却是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">192.168.50.25 -- no entry</span><br></pre></td></tr></table></figure>
+
+<p>到这里基本可以怀疑：本机缺少正常的 <code>192.168.50.0/24 -&gt; en0</code> 直连路由。</p>
+<h2 id="关键证据：看二层-MAC"><a href="#关键证据：看二层-MAC" class="headerlink" title="关键证据：看二层 MAC"></a>关键证据：看二层 MAC</h2><p>普通抓包只能说明本机收到了 request，也发出了 reply：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo tcpdump -ni en0 <span class="string">&#x27;icmp and host 192.168.50.25&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">192.168.50.25 &gt; 192.168.50.22: ICMP echo request</span><br><span class="line">192.168.50.22 &gt; 192.168.50.25: ICMP echo reply</span><br></pre></td></tr></table></figure>
+
+<p>但这还不够。它只说明三层 IP 是对的，没说明二层 MAC 发给了谁。</p>
+<p>要看 MAC，加 <code>-e</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo tcpdump -eni en0 <span class="string">&#x27;icmp and host 192.168.50.25&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>关键形态是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">1a:22:18:7f:6e:d5 &gt; bc:24:11:78:02:22</span><br><span class="line">192.168.50.22 &gt; 192.168.50.25: ICMP echo reply</span><br></pre></td></tr></table></figure>
+
+<p>这里：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">1a:22:18:7f:6e:d5   本机 50.22</span><br><span class="line">bc:24:11:78:02:22   网关 50.2</span><br><span class="line">30:f6:ef:9e:f4:df   对端 50.25</span><br></pre></td></tr></table></figure>
+
+<p>破案点就在这一行：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">IP 目的地:  192.168.50.25</span><br><span class="line">MAC 目的地: 192.168.50.2 的网关 MAC</span><br></pre></td></tr></table></figure>
+
+<p>也就是说，本机确实回包了，但回包在二层发错了人。</p>
+<h2 id="ImmortalWrt-只是佐证"><a href="#ImmortalWrt-只是佐证" class="headerlink" title="ImmortalWrt 只是佐证"></a>ImmortalWrt 只是佐证</h2><p>在网关上也能看到同样的包：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">tcpdump -eni eth0 <span class="string">&#x27;icmp and host 192.168.50.25 and host 192.168.50.22&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">1a:22:18:7f:6e:d5 &gt; bc:24:11:78:02:22</span><br><span class="line">192.168.50.22 &gt; 192.168.50.25: ICMP echo reply</span><br></pre></td></tr></table></figure>
+
+<p>网关知道 <code>50.25</code> 在同一个接口上：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">ip route get 192.168.50.25 from 192.168.50.22 iif eth0</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">192.168.50.25 from 192.168.50.22 dev eth0</span><br><span class="line">    cache &lt;redirect&gt; iif eth0</span><br></pre></td></tr></table></figure>
+
+<p>但它只看到了 reply，没有看到对应的 request。对 conntrack 来说，这类包是 <code>invalid</code>，于是被 fw4 丢掉：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">ct state invalid counter packets 44 bytes 2592 drop</span><br></pre></td></tr></table></figure>
+
+<p>所以不要去改网关防火墙兜底。真正该修的是本机路由。</p>
+<h2 id="根因"><a href="#根因" class="headerlink" title="根因"></a>根因</h2><p>正常情况下，macOS 应该有这条直连路由：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">192.168.50 link#12 UCSc en0</span><br></pre></td></tr></table></figure>
+
+<p>异常时，这条路由缺失或被 Clash TUN 的自动路由刷新打乱。结果是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">三层: 192.168.50.22 -&gt; 192.168.50.25</span><br><span class="line">二层: 本机 MAC -&gt; 网关 MAC</span><br></pre></td></tr></table></figure>
+
+<p>看起来像“本机回了包”，实际是“包回错了二层目的地”。</p>
+<h2 id="修复"><a href="#修复" class="headerlink" title="修复"></a>修复</h2><p>临时补回直连路由：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo route -n add -net 192.168.50.0 -netmask 255.255.255.0 -interface en0</span><br></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">route -n get 192.168.50.25</span><br><span class="line">arp -n 192.168.50.25</span><br></pre></td></tr></table></figure>
+
+<p>期望看到：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">interface: en0</span><br><span class="line">192.168.50.25 at 30:f6:ef:9e:f4:df</span><br></pre></td></tr></table></figure>
+
+<p>长期保留 Clash TUN 排除项：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">tun:</span></span><br><span class="line">  <span class="attr">auto-route:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">route-exclude-address:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="number">192.168</span><span class="number">.50</span><span class="number">.0</span><span class="string">/24</span></span><br></pre></td></tr></table></figure>
+
+<p>如果重启 Clash、切换 Wi-Fi 后又复现，继续检查 mihomo 的 <code>auto-route</code> 刷新行为；必要时关闭 <code>auto-route</code>，或写一个登录后自动补路由的小脚本。</p>
+<h2 id="以后怎么查"><a href="#以后怎么查" class="headerlink" title="以后怎么查"></a>以后怎么查</h2><p>遇到“同网段单向 ping 不通”，不要只看 IP 层。按这个顺序查：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">ifconfig en0</span><br><span class="line">route -n get &lt;peer-ip&gt;</span><br><span class="line">arp -n &lt;peer-ip&gt;</span><br><span class="line">sudo tcpdump -ni en0 <span class="string">&#x27;icmp and host &lt;peer-ip&gt;&#x27;</span></span><br><span class="line">sudo tcpdump -eni en0 <span class="string">&#x27;icmp and host &lt;peer-ip&gt;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>核心问题只有一个：</p>
+<blockquote>
+<p>这个包在三层发给谁？在二层又发给谁？</p>
+</blockquote>
+<p>这两个答案一旦不一致，根因通常就离你很近了。</p>
+]]></content>
+      <categories>
+        <category>网络</category>
+      </categories>
+      <tags>
+        <tag>Network</tag>
+        <tag>macOS</tag>
+        <tag>Clash</tag>
+        <tag>tcpdump</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Tailscale 子网路由导致本地跨网段访问绕路</title>
+    <url>/2026/07/06/Tailscale%E5%AD%90%E7%BD%91%E8%B7%AF%E7%94%B1%E5%AF%BC%E8%87%B4%E6%9C%AC%E5%9C%B0%E8%B7%A8%E7%BD%91%E6%AE%B5%E8%AE%BF%E9%97%AE%E7%BB%95%E8%B7%AF/</url>
+    <content><![CDATA[<p>公司通过 Tailscale 做 VPN。本地有两个网段：</p>
+<ul>
+<li><code>172.31.162.0/24</code></li>
+<li><code>172.31.164.0/23</code></li>
+</ul>
+<p>本地的 subnet router 会把这两个网段上报到 Tailscale，外地同事依赖它访问本地网络，所以不能删除 subnet router。</p>
+<p>同时，本地客户端也需要通过 Tailscale 访问外地办公网，所以不能关闭 <code>accept-routes</code>。</p>
+<span id="more"></span>
+
+<h2 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h2><p>本地 <code>172.31.164.0/23</code> 访问 <code>172.31.162.0/24</code> 时，本来应该走本地网关：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">172.31.164.x -&gt; 本地网关 -&gt; 172.31.162.x</span><br></pre></td></tr></table></figure>
+
+<p>但实际流量走进了 Tailscale。</p>
+<p>可以用下面的命令确认：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">route -n get 172.31.162.10</span><br></pre></td></tr></table></figure>
+
+<p>如果出口是 <code>utun</code> 或 <code>tailscale0</code>，说明流量被 Tailscale 接管了。</p>
+<h2 id="原因"><a href="#原因" class="headerlink" title="原因"></a>原因</h2><p>操作系统选路会优先选择最长前缀匹配。</p>
+<p>当路由表里同时存在：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">default              -&gt; 本地网关</span><br><span class="line">172.31.162.0/24      -&gt; Tailscale</span><br></pre></td></tr></table></figure>
+
+<p>访问 <code>172.31.162.10</code> 时，系统会选择 <code>/24</code>，而不是默认路由。<br>所以这里不是“让默认路由优先”，而是要增加一条比 Tailscale <code>/24</code> 更精确的本地路由。</p>
+<h2 id="解决方式"><a href="#解决方式" class="headerlink" title="解决方式"></a>解决方式</h2><p>保留 Tailscale 的 subnet router，也保留客户端的 <code>accept-routes</code>，只在本地客户端上增加更长前缀的本地路由。</p>
+<p>例如 Tailscale 下发的是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">172.31.162.0/24 -&gt; Tailscale</span><br></pre></td></tr></table></figure>
+
+<p>那就在本地客户端增加两条 <code>/25</code> 路由：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">172.31.162.0/25   -&gt; 本地网关</span><br><span class="line">172.31.162.128/25 -&gt; 本地网关</span><br></pre></td></tr></table></figure>
+
+<p>只在确认当前连接的是公司本地网络、且 <code>172.31.165.254</code> 可达时执行。Tailscale 官方也提醒，这类本地路由方案应只用于网络配置明确、固定的环境；移动网络场景要小心误路由。</p>
+<p>临时加路由用 route：（<strong>这是临时方案，持久化需要 networksetup、LaunchDaemon 或公司统一下发。</strong>）</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo route -n add -net 172.31.162.0/25 172.31.165.254</span><br><span class="line">sudo route -n add -net 172.31.162.128/25 172.31.165.254</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>172.31.165.254</code> 是本地网关，按实际环境替换。</p>
+<h2 id="验证"><a href="#验证" class="headerlink" title="验证"></a>验证</h2><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">route -n get 172.31.162.10</span><br></pre></td></tr></table></figure>
+
+<p>期望结果是走本地网关，例如：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">gateway: 172.31.165.254</span><br><span class="line">interface: en0</span><br></pre></td></tr></table></figure>
+
+<p>而不是 <code>utun</code>。</p>
+<p>如果要删除：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo route -n delete -net 172.31.162.0/25</span><br><span class="line">sudo route -n delete -net 172.31.162.128/25</span><br></pre></td></tr></table></figure>
+<h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>这个问题的关键不是关闭 Tailscale，而是利用最长前缀匹配：</p>
+<blockquote>
+<p>Tailscale 继续负责公司 VPN；本地访问本地网段时，用更具体的本地路由让流量走本地网关。</p>
+</blockquote>
+<p>更详细的原理和其他系统的处理方式，可以参考官方文档：</p>
+<ul>
+<li><a href="https://tailscale.com/docs/reference/troubleshooting/network-configuration/lan-traffic-overlapping-subnets">Tailscale: Troubleshoot LAN traffic prioritization issues with overlapping subnet routes</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>网络</category>
+      </categories>
+      <tags>
+        <tag>Network</tag>
+        <tag>Tailscale</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>用 Wireshark 抓出四川移动 IPTV 的频道列表</title>
     <url>/2026/07/05/%E7%94%A8-Wireshark-%E6%8A%93%E5%87%BA%E5%9B%9B%E5%B7%9D%E7%A7%BB%E5%8A%A8-IPTV-%E7%9A%84%E9%A2%91%E9%81%93%E5%88%97%E8%A1%A8/</url>
     <content><![CDATA[<p>这次折腾 IPTV，一开始是想把 ImmortalWrt 上的 <code>udpxy</code> 换成 <code>rtp2httpd</code>。后来发现真正的问题不在转发工具，而在频道源本身：我先拿四川电信的节目单去跑，结果家里其实是成都&#x2F;四川移动 IPTV。</p>
