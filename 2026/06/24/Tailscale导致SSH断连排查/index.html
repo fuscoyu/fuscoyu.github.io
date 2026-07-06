@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>Tailscale 导致 SSH 断连排查</title>
+<meta name="keywords" content="Tailscale 导致 SSH 断连排查, fuscoyu&#39;s Blog">
+<meta name="description" content="在 Linux VM 里启动 Tailscale 后，当前 SSH 连接立刻断开。这个问题看起来像 sshd 异常，但很多时候真正原因是：Tailscale 接收了子网路由，并插入了优先级更高的策略路由，导致 SSH 回包被导向 tails">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="Tailscale 导致 SSH 断连排查">
+<meta property="og:description" content="在 Linux VM 里启动 Tailscale 后，当前 SSH 连接立刻断开。这个问题看起来像 sshd 异常，但很多时候真正原因是：Tailscale 接收了子网路由，并插入了优先级更高的策略路由，导致 SSH 回包被导向 tails">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">Tailscale 导致 SSH 断连排查</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-06-25</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Network/">
+              Network
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Tailscale/">
+              Tailscale
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <p>在 Linux VM 里启动 Tailscale 后，当前 SSH 连接立刻断开。这个问题看起来像 <code>sshd</code> 异常，但很多时候真正原因是：Tailscale 接收了子网路由，并插入了优先级更高的策略路由，导致 SSH 回包被导向 <code>tailscale0</code>。</p>
+<span id="more"></span>
+
+<h2 id="现象"><a href="#现象" class="headerlink" title="现象"></a>现象</h2><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">tailscale up --accept-routes=<span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+<p>当前 SSH 连接马上断开。</p>
+<p>重新登录后直接看原始输出：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ip rule</span><br><span class="line">5270: from all lookup 52</span><br><span class="line">32766: from all lookup main</span><br><span class="line"></span><br><span class="line">ip route show table 52</span><br><span class="line">192.168.39.0/24 dev tailscale0</span><br><span class="line">10.16.11.0/24 dev tailscale0</span><br></pre></td></tr></table></figure>
+
+<p>重点看两处：</p>
+<ul>
+<li><code>5270: from all lookup 52</code>：<code>table 52</code> 排在 <code>main</code> 前面。</li>
+<li><code>192.168.39.0/24 dev tailscale0</code>：SSH 客户端所在网段可能被 Tailscale 接管。</li>
+</ul>
+<p>这说明 Tailscale 的 <code>table 52</code> 比系统默认的 <code>main</code> 路由表更早被查询。如果 SSH 客户端所在网段也被 Tailscale 接管，SSH 回程就可能被抢走。</p>
+<h2 id="先确认-SSH-客户端-IP"><a href="#先确认-SSH-客户端-IP" class="headerlink" title="先确认 SSH 客户端 IP"></a>先确认 SSH 客户端 IP</h2><p>不要先猜网段，先看当前 SSH 连接来自哪里：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ss -tnpa | grep sshd</span><br><span class="line">ESTAB 0 0 172.16.10.3:22 192.168.39.3:61769 <span class="built_in">users</span>:((<span class="string">&quot;sshd&quot;</span>,pid=1234,fd=4))</span><br></pre></td></tr></table></figure>
+
+<p>这里服务端本地地址是 <code>172.16.10.3:22</code>，SSH 客户端地址是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">192.168.39.3</span><br></pre></td></tr></table></figure>
+
+<p>后面的排查都要围绕这个客户端 IP 做，不要凭印象写一个管理网段。</p>
+<h2 id="查看-SSH-回程走哪里"><a href="#查看-SSH-回程走哪里" class="headerlink" title="查看 SSH 回程走哪里"></a>查看 SSH 回程走哪里</h2><p>拿 SSH 客户端 IP 查路由。如果回程被 Tailscale 抢走，通常会看到类似输出：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ip route get 192.168.39.3</span><br><span class="line">192.168.39.3 dev tailscale0 table 52 src 100.64.0.10</span><br><span class="line">    cache</span><br></pre></td></tr></table></figure>
+
+<p>重点看 <code>dev tailscale0</code> 和 <code>table 52</code>，这说明 SSH 回包会从 Tailscale 出去。</p>
+<p>正常情况下，回程应该走 VM 原来的网卡，例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ip route get 192.168.39.3</span><br><span class="line">192.168.39.3 via 172.16.10.1 dev eth0</span><br><span class="line">    src 172.16.10.3</span><br><span class="line">    cache</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>eth0</code>、网关和网段都要按真实环境替换。</p>
+<h2 id="查看-Tailscale-策略路由"><a href="#查看-Tailscale-策略路由" class="headerlink" title="查看 Tailscale 策略路由"></a>查看 Tailscale 策略路由</h2><p>继续看策略路由和 Tailscale 路由表，建议把命令和输出一起贴出来：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ip rule</span><br><span class="line">5270: from all lookup 52</span><br><span class="line">32766: from all lookup main</span><br><span class="line"></span><br><span class="line">ip route show table 52</span><br><span class="line">192.168.39.0/24 dev tailscale0</span><br><span class="line">10.16.11.0/24 dev tailscale0</span><br></pre></td></tr></table></figure>
+
+<p>重点看两件事：</p>
+<ol>
+<li><code>lookup 52</code> 是否排在 <code>lookup main</code> 前面。</li>
+<li><code>table 52</code> 里是否有 SSH 客户端所在网段，比如 <code>192.168.39.0/24 dev tailscale0</code>。</li>
+</ol>
+<p>Linux 策略路由里，<code>pref</code> 数值越小，优先级越高。这里 <code>5270</code> 小于 <code>32766</code>，所以会先查 Tailscale 的 <code>table 52</code>，再查 <code>main</code> 表。</p>
+<h2 id="根因"><a href="#根因" class="headerlink" title="根因"></a>根因</h2><p>SSH 请求从 VM 原网卡进来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">client -&gt; eth0 -&gt; sshd</span><br></pre></td></tr></table></figure>
+
+<p>但启动 Tailscale 并接收子网路由后，回包查路由时先命中 <code>table 52</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sshd -&gt; tailscale0 -&gt; client</span><br></pre></td></tr></table></figure>
+
+<p>请求从 <code>eth0</code> 进，回包却从 <code>tailscale0</code> 出，路径不一致，当前 SSH 连接就会断开。</p>
+<p>所以这个问题的核心不是 <code>sshd</code> 挂了，而是 SSH 管理流量的回程路由被改了。</p>
+<h2 id="临时修复"><a href="#临时修复" class="headerlink" title="临时修复"></a>临时修复</h2><p>给 SSH 客户端网段加一条更高优先级规则，强制走 <code>main</code> 表：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ip rule add to 192.168.39.0/24 pref 90 lookup main</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>90</code> 小于 Tailscale 的 <code>5270</code>，所以会先命中这条规则。</p>
+<p>验证时也直接看命令输出：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ip route get 192.168.39.3</span><br><span class="line">192.168.39.3 via 172.16.10.1 dev eth0</span><br><span class="line">    src 172.16.10.3</span><br><span class="line">    cache</span><br></pre></td></tr></table></figure>
+
+<p>重点看 <code>dev eth0</code>。如果仍然是 <code>dev tailscale0</code>，说明网段、客户端 IP 或规则优先级需要继续检查。</p>
+<h2 id="DNS-也要检查"><a href="#DNS-也要检查" class="headerlink" title="DNS 也要检查"></a>DNS 也要检查</h2><p>有时 SSH 恢复后，DNS 仍然异常。可以先拿当前 DNS 服务器地址：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">DNS=$(awk <span class="string">&#x27;/^nameserver/&#123;print $2; exit&#125;&#x27;</span> /etc/resolv.conf)</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$DNS</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>看 DNS 回程是否也被导到 <code>tailscale0</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ip route get <span class="string">&quot;<span class="variable">$DNS</span>&quot;</span></span><br><span class="line">10.16.11.2 dev tailscale0 table 52 src 100.64.0.10</span><br><span class="line">    cache</span><br></pre></td></tr></table></figure>
+
+<p>重点看 <code>dev tailscale0</code>。如果 DNS 不在管理网段内，并且也走了 <code>tailscale0</code>，可以单独保护 DNS IP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ip rule add to <span class="string">&quot;<span class="variable">$DNS</span>&quot;</span>/32 pref 91 lookup main</span><br></pre></td></tr></table></figure>
+
+<p>再验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ip route get <span class="string">&quot;<span class="variable">$DNS</span>&quot;</span></span><br><span class="line">10.16.11.2 via 172.16.10.1 dev eth0</span><br><span class="line">    src 172.16.10.3</span><br><span class="line">    cache</span><br></pre></td></tr></table></figure>
+
+<h2 id="持久化配置"><a href="#持久化配置" class="headerlink" title="持久化配置"></a>持久化配置</h2><p>可以把规则写进 <code>/etc/rc.local</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt;/etc/rc.local &lt;&lt;<span class="string">&#x27;EOF&#x27;</span></span><br><span class="line"><span class="comment">#!/bin/sh</span></span><br><span class="line"><span class="built_in">set</span> -e</span><br><span class="line"></span><br><span class="line"><span class="comment"># 保护 SSH / 管理网段，避免被 Tailscale table 52 抢走</span></span><br><span class="line">ip rule del to 192.168.39.0/24 pref 90 lookup main 2&gt;/dev/null || <span class="literal">true</span></span><br><span class="line">ip rule add to 192.168.39.0/24 pref 90 lookup main</span><br><span class="line"></span><br><span class="line"><span class="comment"># 如 DNS 不在管理网段，可单独保护 DNS IP</span></span><br><span class="line"><span class="comment"># ip rule del to &lt;DNS_IP&gt;/32 pref 91 lookup main 2&gt;/dev/null || true</span></span><br><span class="line"><span class="comment"># ip rule add to &lt;DNS_IP&gt;/32 pref 91 lookup main</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">exit</span> 0</span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line"><span class="built_in">chmod</span> +x /etc/rc.local</span><br></pre></td></tr></table></figure>
+
+<p>再创建 <code>rc-local.service</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt;/etc/systemd/system/rc-local.service &lt;&lt;<span class="string">&#x27;EOF&#x27;</span></span><br><span class="line">[Unit]</span><br><span class="line">Description=/etc/rc.local Compatibility</span><br><span class="line">After=network-online.target tailscaled.service</span><br><span class="line">Wants=network-online.target</span><br><span class="line"></span><br><span class="line">[Service]</span><br><span class="line">Type=oneshot</span><br><span class="line">ExecStart=/etc/rc.local</span><br><span class="line">RemainAfterExit=<span class="built_in">yes</span></span><br><span class="line"></span><br><span class="line">[Install]</span><br><span class="line">WantedBy=multi-user.target</span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line">systemctl daemon-reload</span><br><span class="line">systemctl <span class="built_in">enable</span> rc-local</span><br><span class="line">systemctl start rc-local</span><br></pre></td></tr></table></figure>
+
+<p>检查规则是否生效：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ip rule</span><br><span class="line">ip route get 192.168.39.3</span><br></pre></td></tr></table></figure>
+
+<h2 id="防止把自己锁外面"><a href="#防止把自己锁外面" class="headerlink" title="防止把自己锁外面"></a>防止把自己锁外面</h2><p>测试 Tailscale 前，可以先放一个自动恢复：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">nohup</span> sh -c <span class="string">&#x27;sleep 90; tailscale down&#x27;</span> &gt;/tmp/ts-rescue.log 2&gt;&amp;1 &amp;</span><br></pre></td></tr></table></figure>
+
+<p>如果 90 秒内 SSH 没断，或者已经确认规则没问题，可以忽略它；如果 SSH 被断开，Tailscale 会在 90 秒后自动关闭，方便重新登录。</p>
+<p>也可以开两个 SSH 窗口：一个执行 Tailscale 操作，一个专门观察路由和连接状态。</p>
+<h2 id="排查清单"><a href="#排查清单" class="headerlink" title="排查清单"></a>排查清单</h2><p>完整顺序可以固定成下面这几步：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 先确认 SSH 客户端 IP</span></span><br><span class="line">ss -tnpa | grep sshd</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 看 SSH 回程走原网卡还是 tailscale0</span></span><br><span class="line">ip route get &lt;client_ip&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 看策略路由优先级</span></span><br><span class="line">ip rule</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 看 Tailscale 接管了哪些网段</span></span><br><span class="line">ip route show table 52</span><br><span class="line"></span><br><span class="line"><span class="comment"># 5. 保护 SSH / DNS 管理流量</span></span><br><span class="line">ip rule add to &lt;client_subnet&gt; pref 90 lookup main</span><br></pre></td></tr></table></figure>
+
+<p>一句话总结：启动 Tailscale 后 SSH 断连，先查 <code>ip route get &lt;ssh_client_ip&gt;</code>。只要回程落到 <code>tailscale0</code>，就优先怀疑 Tailscale 的 <code>table 52</code> 抢了管理网段路由。</p>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E7%8E%B0%E8%B1%A1"><span class="top-box-text">现象</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%85%88%E7%A1%AE%E8%AE%A4-SSH-%E5%AE%A2%E6%88%B7%E7%AB%AF-IP"><span class="top-box-text">先确认 SSH 客户端 IP</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%9F%A5%E7%9C%8B-SSH-%E5%9B%9E%E7%A8%8B%E8%B5%B0%E5%93%AA%E9%87%8C"><span class="top-box-text">查看 SSH 回程走哪里</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%9F%A5%E7%9C%8B-Tailscale-%E7%AD%96%E7%95%A5%E8%B7%AF%E7%94%B1"><span class="top-box-text">查看 Tailscale 策略路由</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%A0%B9%E5%9B%A0"><span class="top-box-text">根因</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%B4%E6%97%B6%E4%BF%AE%E5%A4%8D"><span class="top-box-text">临时修复</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#DNS-%E4%B9%9F%E8%A6%81%E6%A3%80%E6%9F%A5"><span class="top-box-text">DNS 也要检查</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%8C%81%E4%B9%85%E5%8C%96%E9%85%8D%E7%BD%AE"><span class="top-box-text">持久化配置</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%98%B2%E6%AD%A2%E6%8A%8A%E8%87%AA%E5%B7%B1%E9%94%81%E5%A4%96%E9%9D%A2"><span class="top-box-text">防止把自己锁外面</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%8E%92%E6%9F%A5%E6%B8%85%E5%8D%95"><span class="top-box-text">排查清单</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/06/21/2026%E6%88%91%E7%9A%84macOS%E8%BD%AF%E4%BB%B6%E4%B8%8E%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83%E5%AE%89%E8%A3%85%E6%B8%85%E5%8D%95/">
+          <h3 class="post-title">
+            
+            下一篇：2026 我的 macOS 软件与开发环境安装清单
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+

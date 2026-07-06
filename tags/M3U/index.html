@@ -78,7 +78,7 @@
 
   <div class="current-tag-container">
     <h2 class="title">
-      <i class="icon icon-pricetags-outline"></i> Network
+      <i class="icon icon-pricetags-outline"></i> M3U
     </h2>
   </div>
 
@@ -86,128 +86,49 @@
 
 <section class="post-item">
     <div class="content">
-      <a href="/2026/06/24/Tailscale%E5%AF%BC%E8%87%B4SSH%E6%96%AD%E8%BF%9E%E6%8E%92%E6%9F%A5/">
-        <h2 class="post-title">Tailscale 导致 SSH 断连排查</h2>
+      <a href="/2026/07/05/%E7%94%A8-Wireshark-%E6%8A%93%E5%87%BA%E5%9B%9B%E5%B7%9D%E7%A7%BB%E5%8A%A8-IPTV-%E7%9A%84%E9%A2%91%E9%81%93%E5%88%97%E8%A1%A8/">
+        <h2 class="post-title">用 Wireshark 抓出四川移动 IPTV 的频道列表</h2>
       </a>
-      <a href="/2026/06/24/Tailscale%E5%AF%BC%E8%87%B4SSH%E6%96%AD%E8%BF%9E%E6%8E%92%E6%9F%A5/">
+      <a href="/2026/07/05/%E7%94%A8-Wireshark-%E6%8A%93%E5%87%BA%E5%9B%9B%E5%B7%9D%E7%A7%BB%E5%8A%A8-IPTV-%E7%9A%84%E9%A2%91%E9%81%93%E5%88%97%E8%A1%A8/">
           <div class="post-abstract">
             
-			    在 Linux VM 里启动 Tailscale 后，当前 SSH 连接立刻断开。这个问题看起来像 sshd 异常，但很多时候真正原因是：Tailscale 接收了子网路由，并插入了优先级更高的策略路由，导致 SSH 回包被导向 tails
+			    这次折腾 IPTV，一开始是想把 ImmortalWrt 上的 udpxy 换成 rtp2httpd。后来发现真正的问题不在转发工具，而在频道源本身：我先拿四川电信的节目单去跑，结果家里其实是成都&#x2F;四川移动 IPTV。
+现象很典型
             
           </div>
       </a>
       <div class="post-info">
-        <span><i class="icon icon-calendar-outline"></i> 2026-06-25</span>
+        <span><i class="icon icon-calendar-outline"></i> 2026-07-06</span>
         
           <span>
             <i class="icon icon-pricetags-outline"></i>
             
 
-                Network
+                IPTV
                 
                   ，
                 
             
 
-                Tailscale
+                Wireshark
+                
+                  ，
                 
             
-          </span>
-        
-      </div>
-    </div>
-  </section>
 
-
-
-<section class="post-item">
-    <div class="content">
-      <a href="/2026/06/17/%E4%BA%A4%E6%8D%A2%E6%9C%BA%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E6%95%B4%E7%90%86/">
-        <h2 class="post-title">交换机常用命令整理</h2>
-      </a>
-      <a href="/2026/06/17/%E4%BA%A4%E6%8D%A2%E6%9C%BA%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E6%95%B4%E7%90%86/">
-          <div class="post-abstract">
-            
-			    交换机常用命令整理最近整理交换机配置时，发现很多命令平时都用得上，但分散记忆很容易忘。这里按实际排障和配置的顺序，把常见命令整理成一篇速查笔记。
-本文命令以华为 VRP 风格为主，H3C、不同型号或不同系统版本的命令可能略有差异，实际操作前
-            
-          </div>
-      </a>
-      <div class="post-info">
-        <span><i class="icon icon-calendar-outline"></i> 2026-06-18</span>
-        
-          <span>
-            <i class="icon icon-pricetags-outline"></i>
-            
-
-                Network
+                ImmortalWrt
+                
+                  ，
                 
             
-          </span>
-        
-      </div>
-    </div>
-  </section>
 
-
-
-<section class="post-item">
-    <div class="content">
-      <a href="/2026/06/06/iptables-%E6%B5%8B%E8%AF%95%E7%AF%87/">
-        <h2 class="post-title">每天学习一个命令: iptables 测试篇</h2>
-      </a>
-      <a href="/2026/06/06/iptables-%E6%B5%8B%E8%AF%95%E7%AF%87/">
-          <div class="post-abstract">
-            
-			    iptables 测试篇
-本文由 Codex 辅助生成，用来测试自己是否掌握 iptables 基础命令。
-
-上一篇整理了 iptables 的基础概念和常用命令。这一篇换个方式：不继续讲概念，而是通过题目检查自己是否真的会用。
-建议先不要
-            
-          </div>
-      </a>
-      <div class="post-info">
-        <span><i class="icon icon-calendar-outline"></i> 2026-06-06</span>
-        
-          <span>
-            <i class="icon icon-pricetags-outline"></i>
-            
-
-                Network
+                rtp2httpd
+                
+                  ，
                 
             
-          </span>
-        
-      </div>
-    </div>
-  </section>
 
-
-
-<section class="post-item">
-    <div class="content">
-      <a href="/2026/06/06/iptables/">
-        <h2 class="post-title">每天学习一个命令: iptables</h2>
-      </a>
-      <a href="/2026/06/06/iptables/">
-          <div class="post-abstract">
-            
-			    iptables
-本文由 Codex 辅助生成，内容整理自 B 站「米拉一老王」的 iptables 学习资料。
-
-简介iptables 常被直接叫做 Linux 防火墙，但更准确一点说，它是一个用户态命令行工具，用来给 Linux 内核里
-            
-          </div>
-      </a>
-      <div class="post-info">
-        <span><i class="icon icon-calendar-outline"></i> 2026-06-06</span>
-        
-          <span>
-            <i class="icon icon-pricetags-outline"></i>
-            
-
-                Network
+                M3U
                 
             
           </span>
