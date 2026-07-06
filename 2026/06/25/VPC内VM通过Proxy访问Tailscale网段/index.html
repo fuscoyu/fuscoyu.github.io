@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>VPC 内 VM 通过 Proxy 访问 Tailscale 网段</title>
+<meta name="keywords" content="VPC 内 VM 通过 Proxy 访问 Tailscale 网段, fuscoyu&#39;s Blog">
+<meta name="description" content="有时 VPC 里只有一台机器适合安装 Tailscale，但其他 VM 也需要访问 Tailscale 后面的远端内网段。这个场景可以把这台机器当成一个 proxy 节点：VPC 内机器把目标网段路由到 proxy，proxy 再通过 ta">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="VPC 内 VM 通过 Proxy 访问 Tailscale 网段">
+<meta property="og:description" content="有时 VPC 里只有一台机器适合安装 Tailscale，但其他 VM 也需要访问 Tailscale 后面的远端内网段。这个场景可以把这台机器当成一个 proxy 节点：VPC 内机器把目标网段路由到 proxy，proxy 再通过 ta">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <link rel="stylesheet" href="/style/simple-lightbox.min.css"><meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">VPC 内 VM 通过 Proxy 访问 Tailscale 网段</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-06-26</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Network/">
+              Network
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/iptables/">
+              iptables
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Tailscale/">
+              Tailscale
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <p>有时 VPC 里只有一台机器适合安装 Tailscale，但其他 VM 也需要访问 Tailscale 后面的远端内网段。这个场景可以把这台机器当成一个 proxy 节点：VPC 内机器把目标网段路由到 proxy，proxy 再通过 <code>tailscale0</code> 转发出去。</p>
+<p>示例环境：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">A 节点:      172.16.10.8</span><br><span class="line">proxy 节点:  172.16.10.3 + tailscale0</span><br><span class="line">远端网段:    192.168.81.0/24</span><br><span class="line"></span><br><span class="line">A -&gt; proxy -&gt; tailscale0 -&gt; 远端网段</span><br></pre></td></tr></table></figure>
+
+<p><a class="simple-lightbox" target="_blank" rel="noopener" href="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260626093048.png"><img   src="/images/loading.svg" data-src="https://raw.githubusercontent.com/fuscoyu/picgo/main/20260626093048.png"  alt="VPC 内 VM 通过 Proxy 访问 Tailscale 网段拓扑" lazyload></a></p>
+<p>推荐做法是 NAT 网关模式：远端只看到 proxy 的 Tailscale IP，看不到 A 节点真实 IP。这样配置最少，也不需要改远端节点路由。</p>
+<span id="more"></span>
+
+<h2 id="先看数据包怎么走"><a href="#先看数据包怎么走" class="headerlink" title="先看数据包怎么走"></a>先看数据包怎么走</h2><p>A 节点访问 <code>192.168.81.248</code> 时，原始包大致是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">src=172.16.10.8</span><br><span class="line">dst=192.168.81.248</span><br></pre></td></tr></table></figure>
+
+<p>A 把包交给 proxy 后，proxy 要做两件事：</p>
+<ol>
+<li>允许包从 <code>eth0</code> 转发到 <code>tailscale0</code>。</li>
+<li>把源地址改成 proxy 的 Tailscale 地址。</li>
+</ol>
+<p>第一件事靠 <code>FORWARD</code> 规则。第二件事靠 <code>MASQUERADE</code>，也就是 NAT。</p>
+<p>如果只有 <code>FORWARD</code>，没有 NAT，远端看到的来源还是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">172.16.10.8</span><br></pre></td></tr></table></figure>
+
+<p>但远端 Tailscale 网络通常不知道怎么回到 <code>172.16.10.8</code>，表现就是请求可能出去了，但回包回不来。</p>
+<p>加了 NAT 后，远端看到的来源会变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">proxy 的 Tailscale IP</span><br></pre></td></tr></table></figure>
+
+<p>这样远端只需要回给 proxy，Tailscale 网络天然知道怎么回。</p>
+<p>一句话记住：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">FORWARD 负责「能不能转发」</span><br><span class="line">MASQUERADE 负责「远端能不能回包」</span><br></pre></td></tr></table></figure>
+
+<h2 id="推荐模式：NAT-网关"><a href="#推荐模式：NAT-网关" class="headerlink" title="推荐模式：NAT 网关"></a>推荐模式：NAT 网关</h2><p>NAT 模式适合这些场景：</p>
+<ul>
+<li>VPC 内多台 VM 通过一个 proxy 访问 Tailscale 网段。</li>
+<li>不希望把整个 VPC 暴露进 Tailscale。</li>
+<li>不想改远端节点路由。</li>
+<li>远端只需要知道 proxy，不需要知道每台 VPC VM。</li>
+</ul>
+<p>它的代价也很明确：远端看到的都是 proxy 的 Tailscale IP，不是 A 节点的真实 IP。</p>
+<h2 id="proxy-节点配置"><a href="#proxy-节点配置" class="headerlink" title="proxy 节点配置"></a>proxy 节点配置</h2><p>下面假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">VPC 网段:          172.16.10.0/24</span><br><span class="line">proxy VPC 网卡:    eth0</span><br><span class="line">proxy Tailscale:   tailscale0</span><br><span class="line">远端网段:          192.168.81.0/24</span><br></pre></td></tr></table></figure>
+
+<h3 id="启动-Tailscale-并接收远端路由"><a href="#启动-Tailscale-并接收远端路由" class="headerlink" title="启动 Tailscale 并接收远端路由"></a>启动 Tailscale 并接收远端路由</h3><p>proxy 节点先启动 Tailscale，并接收远端发布的 subnet route：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">tailscale up \</span><br><span class="line">  --login-server=https://haha.com \</span><br><span class="line">  --accept-routes=<span class="literal">true</span> \</span><br><span class="line">  --accept-dns=<span class="literal">false</span></span><br></pre></td></tr></table></figure>
+
+<p>这里我要访问的192.168.81.0&#x2F;24这个网段，首先确认远端网段确实在 Tailscale 路由里：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">root@proxy:~<span class="comment"># ip route show table 52 | grep 192.168.81</span></span><br><span class="line">192.168.81.0/24 dev tailscale0</span><br><span class="line"></span><br><span class="line">root@proxy:~<span class="comment"># ip route get 192.168.81.248</span></span><br><span class="line">192.168.81.248 dev tailscale0 table 52 src 100.125.6.212 uid 0</span><br></pre></td></tr></table></figure>
+
+<p>期望目标走 <code>tailscale0</code>。如果这里都没走 <code>tailscale0</code>，后面加 iptables 也没用。</p>
+<h3 id="开启-Linux-转发"><a href="#开启-Linux-转发" class="headerlink" title="开启 Linux 转发"></a>开启 Linux 转发</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt;/etc/sysctl.d/99-proxy-forward.conf &lt;&lt;<span class="string">&#x27;EOF&#x27;</span></span><br><span class="line">net.ipv4.ip_forward=1</span><br><span class="line">net.ipv4.conf.all.rp_filter=0</span><br><span class="line">net.ipv4.conf.default.rp_filter=0</span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line">sysctl --system</span><br></pre></td></tr></table></figure>
+
+<p>这里有两个关键配置：</p>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>net.ipv4.ip_forward=1</code></td>
+<td>允许 proxy 帮其他机器转发 IP 包</td>
+</tr>
+<tr>
+<td><code>rp_filter=0</code></td>
+<td>避免多网卡、多路由表场景下，因为回程路径不完全一致而误丢包</td>
+</tr>
+</tbody></table>
+<p><code>rp_filter</code> 在普通单网卡服务器上通常不容易碰到，但在 VPC 网卡、<code>tailscale0</code>、策略路由同时存在时，关掉它更稳。</p>
+<h3 id="配置转发和-NAT"><a href="#配置转发和-NAT" class="headerlink" title="配置转发和 NAT"></a>配置转发和 NAT</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">iptables -A FORWARD -i eth0 -o tailscale0 -j ACCEPT</span><br><span class="line"></span><br><span class="line">iptables -A FORWARD -i tailscale0 -o eth0 \</span><br><span class="line">  -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT</span><br><span class="line"></span><br><span class="line">iptables -t nat -A POSTROUTING \</span><br><span class="line">  -s 172.16.10.0/24 -o tailscale0 -j MASQUERADE</span><br></pre></td></tr></table></figure>
+
+<p>三条规则分别是：</p>
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>eth0 -&gt; tailscale0 ACCEPT</code></td>
+<td>允许 VPC 到 Tailscale 的转发流量</td>
+</tr>
+<tr>
+<td><code>tailscale0 -&gt; eth0 RELATED,ESTABLISHED</code></td>
+<td>只允许已建立连接的回包回来</td>
+</tr>
+<tr>
+<td><code>POSTROUTING MASQUERADE</code></td>
+<td>把 VPC VM 的源地址动态改成 proxy 的 Tailscale 地址</td>
+</tr>
+</tbody></table>
+<p>第二条只放行已建立连接的回包，不开放远端主动访问 VPC。</p>
+<h2 id="MASQUERADE-是什么"><a href="#MASQUERADE-是什么" class="headerlink" title="MASQUERADE 是什么"></a>MASQUERADE 是什么</h2><p><code>MASQUERADE</code> 是 iptables NAT 表里的一种动态 SNAT。</p>
+<p>普通 SNAT 要明确写死出口源地址：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">iptables -t nat -A POSTROUTING \</span><br><span class="line">  -s 172.16.10.0/24 -o tailscale0 \</span><br><span class="line">  -j SNAT --to-source 100.x.x.x</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>100.x.x.x</code> 是 proxy 的 Tailscale IP。</p>
+<p>而 <code>MASQUERADE</code> 不需要写死这个 IP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">iptables -t nat -A POSTROUTING \</span><br><span class="line">  -s 172.16.10.0/24 -o tailscale0 \</span><br><span class="line">  -j MASQUERADE</span><br></pre></td></tr></table></figure>
+
+<p>它会在包从 <code>tailscale0</code> 发出去时，自动使用 <code>tailscale0</code> 当前 IP 作为源地址。</p>
+<p>也就是说，它把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">src=172.16.10.8</span><br><span class="line">dst=192.168.81.248</span><br></pre></td></tr></table></figure>
+
+<p>动态改成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">src=proxy 的 tailscale0 当前 IP</span><br><span class="line">dst=192.168.81.248</span><br></pre></td></tr></table></figure>
+
+<p>这里用 <code>MASQUERADE</code> 的原因是 Tailscale 地址由 Tailscale 分配，重连、迁移、重新登录后都有可能变化。用 <code>MASQUERADE</code> 不需要关心当前 Tailscale IP 是多少。</p>
+<p>两者区别可以这样记：</p>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>特点</th>
+<th>适合场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SNAT</code></td>
+<td>源地址写死</td>
+<td>出口 IP 固定</td>
+</tr>
+<tr>
+<td><code>MASQUERADE</code></td>
+<td>自动取出口网卡当前 IP</td>
+<td>VPN、Tailscale、拨号网络这类出口地址可能变化的场景</td>
+</tr>
+</tbody></table>
+<h2 id="A-节点或-VPC-路由配置"><a href="#A-节点或-VPC-路由配置" class="headerlink" title="A 节点或 VPC 路由配置"></a>A 节点或 VPC 路由配置</h2><p>A 节点不需要安装 Tailscale，只需要让去往远端 Tailscale 网段的流量先到 proxy。</p>
+<p>最直接的方式是在 A 节点上加静态路由：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ip route add 192.168.81.0/24 via 172.16.10.3 dev eth0</span><br></pre></td></tr></table></figure>
+
+<p>验证单机路由：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ip route get 192.168.81.248</span><br><span class="line">192.168.81.248 via 172.16.10.3 dev eth0</span><br><span class="line"></span><br><span class="line">ping 192.168.81.248</span><br></pre></td></tr></table></figure>
+<p>如果 A 上有多块网卡，<code>dev eth0</code> 要替换成能到达 proxy 的那块网卡。</p>
+<p>如果 VPC 内有多台 VM 都要访问这个远端网段，更推荐把这条路由放到 VPC 路由器或云平台路由表里：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">目标网段: 192.168.81.0/24</span><br><span class="line">下一跳:   172.16.10.3，也就是 proxy 节点</span><br></pre></td></tr></table></figure>
+
+<p>这样整个 VPC 内的 VM 都可以通过 proxy 访问 <code>192.168.81.0/24</code>，不需要在每台 VM 上单独执行 <code>ip route add</code>。</p>
+<p>需要注意的是，这只是把“入口路由”集中到了 VPC 路由器上。proxy 节点上的 <code>ip_forward</code>、<code>FORWARD</code> 和 <code>MASQUERADE</code> 仍然需要配置，否则包到了 proxy 以后还是转不出去，或者回包回不来。</p>
+<p>如果云平台要求下一跳 VM 具备转发能力，还要在云平台侧开启对应的转发设置，或关闭类似 <code>source/destination check</code> 的限制。不同平台叫法不一样，核心都是允许 proxy 转发非本机源目的的流量。</p>
+<h2 id="排查思路"><a href="#排查思路" class="headerlink" title="排查思路"></a>排查思路</h2><p>排查时按数据包路径一段一段确认，不要一上来就猜 NAT 或 Tailscale。</p>
+<h3 id="入口路由是否交给-proxy"><a href="#入口路由是否交给-proxy" class="headerlink" title="入口路由是否交给 proxy"></a>入口路由是否交给 proxy</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ip route get 192.168.81.248</span><br></pre></td></tr></table></figure>
+
+<p>如果是在 A 节点上直接加的静态路由，期望看到 <code>via 172.16.10.3</code>。</p>
+<p>如果是在 VPC 路由器或云路由表里集中配置，A 节点上可能只看到默认网关，这是正常的。这时要检查 VPC 路由表里是否存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">192.168.81.0/24 -&gt; proxy 节点 172.16.10.3</span><br></pre></td></tr></table></figure>
+
+<p>也可以直接在 proxy 上抓 <code>eth0</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">tcpdump -ni eth0 host 172.16.10.8</span><br></pre></td></tr></table></figure>
+
+<p>如果 A 发起访问时 proxy 的 <code>eth0</code> 能看到包，说明入口路由已经把流量交给 proxy。</p>
+<h3 id="proxy-是否走-Tailscale"><a href="#proxy-是否走-Tailscale" class="headerlink" title="proxy 是否走 Tailscale"></a>proxy 是否走 Tailscale</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ip route get 192.168.81.248</span><br><span class="line">ip route show table 52 | grep 192.168.81</span><br></pre></td></tr></table></figure>
+
+<p>如果 proxy 本机去远端网段都不走 <code>tailscale0</code>，先查 Tailscale route，而不是查 A。</p>
+<h3 id="iptables-规则是否命中"><a href="#iptables-规则是否命中" class="headerlink" title="iptables 规则是否命中"></a>iptables 规则是否命中</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">iptables -L FORWARD -n -v</span><br><span class="line">iptables -t nat -L POSTROUTING -n -v</span><br></pre></td></tr></table></figure>
+
+<p>看对应规则的 packet &#x2F; byte 计数是否增长。</p>
+<h3 id="抓包看路径"><a href="#抓包看路径" class="headerlink" title="抓包看路径"></a>抓包看路径</h3><p>在 proxy 上抓两侧接口：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">tcpdump -ni eth0 host 172.16.10.8</span><br><span class="line">tcpdump -ni tailscale0 host 192.168.81.248</span><br></pre></td></tr></table></figure>
+
+<p>常见判断：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>eth0</code> 有包，<code>tailscale0</code> 没包</td>
+<td><code>ip_forward</code>、<code>FORWARD</code>、proxy 路由</td>
+</tr>
+<tr>
+<td><code>tailscale0</code> 有出包，但 A 收不到回包</td>
+<td><code>MASQUERADE</code>、回包 conntrack、远端防火墙</td>
+</tr>
+<tr>
+<td>proxy 自己也访问不了远端</td>
+<td>Tailscale route、远端 subnet route 是否发布和审批</td>
+</tr>
+</tbody></table>
+<h2 id="不加-NAT-可以吗"><a href="#不加-NAT-可以吗" class="headerlink" title="不加 NAT 可以吗"></a>不加 NAT 可以吗</h2><p>可以，但那就变成纯路由模式。</p>
+<p>纯路由模式下，远端会看到 A 的真实来源：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">172.16.10.8</span><br></pre></td></tr></table></figure>
+
+<p>所以必须让 Tailscale 网络知道怎么回到 VPC 网段。也就是在 proxy 上发布 VPC 网段：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">tailscale up \</span><br><span class="line">  --login-server=https://haha.com \</span><br><span class="line">  --accept-routes=<span class="literal">true</span> \</span><br><span class="line">  --accept-dns=<span class="literal">false</span> \</span><br><span class="line">  --advertise-routes=172.16.10.0/24</span><br></pre></td></tr></table></figure>
+
+<p>然后在 Tailscale 管理后台审批这个路由。</p>
+<p>两种模式对比：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>优点</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>NAT 模式</td>
+<td>配置简单，远端只看到 proxy，推荐日常使用</td>
+<td>远端看不到 A 的真实 IP</td>
+</tr>
+<tr>
+<td>纯路由模式</td>
+<td>远端能看到 A 的真实 IP</td>
+<td>需要发布 VPC 网段，并在后台审批路由</td>
+</tr>
+</tbody></table>
+<p>大多数场景下，我会先用 NAT 模式。只有远端必须区分具体 VPC VM 时，才考虑纯路由模式。</p>
+<h2 id="不要把公网网段随便丢给-proxy"><a href="#不要把公网网段随便丢给-proxy" class="headerlink" title="不要把公网网段随便丢给 proxy"></a>不要把公网网段随便丢给 proxy</h2><p>比如这条路由：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ip route add 139.198.183.0/24 via 172.16.10.3</span><br></pre></td></tr></table></figure>
+
+<p>只有在 proxy 的 Tailscale 路由里也存在这个网段时才有意义：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ip route show table 52 | grep 139.198.183</span><br></pre></td></tr></table></figure>
+
+<p>如果这个网段不在 Tailscale 路由里，A 把包交给 proxy 也没用。公网 HTTP &#x2F; HTTPS 访问更适合用应用层代理：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">export</span> HTTP_PROXY=http://proxy:port</span><br><span class="line"><span class="built_in">export</span> HTTPS_PROXY=http://proxy:port</span><br></pre></td></tr></table></figure>
+
+<p>路由和代理解决的是不同层的问题，不要混在一起。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>这个方案的核心很简单：</p>
+<ul>
+<li>其他 VM 或 VPC 路由器：把 Tailscale 远端网段 route 到 proxy。</li>
+<li>proxy：负责 <code>ip_forward</code>、<code>FORWARD</code> 放行、<code>MASQUERADE</code> 改源地址。</li>
+<li><code>FORWARD</code>：决定包能不能穿过 proxy。</li>
+<li><code>MASQUERADE</code>：动态 SNAT，决定远端回包能不能回到 proxy，再回到 A。</li>
+</ul>
+<p>最终结论：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">让其他 VM 通过 proxy 访问 Tailscale 网段时，光能转发还不够。</span><br><span class="line">如果不发布 VPC 回程路由，就必须做 NAT。</span><br></pre></td></tr></table></figure>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%85%88%E7%9C%8B%E6%95%B0%E6%8D%AE%E5%8C%85%E6%80%8E%E4%B9%88%E8%B5%B0"><span class="top-box-text">先看数据包怎么走</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%8E%A8%E8%8D%90%E6%A8%A1%E5%BC%8F%EF%BC%9ANAT-%E7%BD%91%E5%85%B3"><span class="top-box-text">推荐模式：NAT 网关</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#proxy-%E8%8A%82%E7%82%B9%E9%85%8D%E7%BD%AE"><span class="top-box-text">proxy 节点配置</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%90%AF%E5%8A%A8-Tailscale-%E5%B9%B6%E6%8E%A5%E6%94%B6%E8%BF%9C%E7%AB%AF%E8%B7%AF%E7%94%B1"><span class="top-box-text">启动 Tailscale 并接收远端路由</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%BC%80%E5%90%AF-Linux-%E8%BD%AC%E5%8F%91"><span class="top-box-text">开启 Linux 转发</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E9%85%8D%E7%BD%AE%E8%BD%AC%E5%8F%91%E5%92%8C-NAT"><span class="top-box-text">配置转发和 NAT</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#MASQUERADE-%E6%98%AF%E4%BB%80%E4%B9%88"><span class="top-box-text">MASQUERADE 是什么</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#A-%E8%8A%82%E7%82%B9%E6%88%96-VPC-%E8%B7%AF%E7%94%B1%E9%85%8D%E7%BD%AE"><span class="top-box-text">A 节点或 VPC 路由配置</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%8E%92%E6%9F%A5%E6%80%9D%E8%B7%AF"><span class="top-box-text">排查思路</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%85%A5%E5%8F%A3%E8%B7%AF%E7%94%B1%E6%98%AF%E5%90%A6%E4%BA%A4%E7%BB%99-proxy"><span class="top-box-text">入口路由是否交给 proxy</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#proxy-%E6%98%AF%E5%90%A6%E8%B5%B0-Tailscale"><span class="top-box-text">proxy 是否走 Tailscale</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#iptables-%E8%A7%84%E5%88%99%E6%98%AF%E5%90%A6%E5%91%BD%E4%B8%AD"><span class="top-box-text">iptables 规则是否命中</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E6%8A%93%E5%8C%85%E7%9C%8B%E8%B7%AF%E5%BE%84"><span class="top-box-text">抓包看路径</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%8D%E5%8A%A0-NAT-%E5%8F%AF%E4%BB%A5%E5%90%97"><span class="top-box-text">不加 NAT 可以吗</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%8D%E8%A6%81%E6%8A%8A%E5%85%AC%E7%BD%91%E7%BD%91%E6%AE%B5%E9%9A%8F%E4%BE%BF%E4%B8%A2%E7%BB%99-proxy"><span class="top-box-text">不要把公网网段随便丢给 proxy</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%80%BB%E7%BB%93"><span class="top-box-text">总结</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/06/24/Tailscale%E5%AF%BC%E8%87%B4SSH%E6%96%AD%E8%BF%9E%E6%8E%92%E6%9F%A5/">
+          <h3 class="post-title">
+            
+            下一篇：Tailscale 导致 SSH 断连排查
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  <script src="/js/simple-lightbox.min.js"></script><script>document.addEventListener('DOMContentLoaded', function() {new SimpleLightbox('.post-detail .simple-lightbox', {fileExt: false,captionsData:'alt'});});</script></body>
+</html>
+
