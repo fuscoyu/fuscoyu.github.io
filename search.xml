@@ -394,7 +394,7 @@
   </entry>
   <entry>
     <title>VPC 内 VM 通过 Proxy 访问 Tailscale 网段</title>
-    <url>/2026/06/25/VPC%E5%86%85VM%E9%80%9A%E8%BF%87Proxy%E8%AE%BF%E9%97%AETailscale%E7%BD%91%E6%AE%B5/</url>
+    <url>/2026/06/26/VPC%E5%86%85VM%E9%80%9A%E8%BF%87Proxy%E8%AE%BF%E9%97%AETailscale%E7%BD%91%E6%AE%B5/</url>
     <content><![CDATA[<p>有时 VPC 里只有一台机器适合安装 Tailscale，但其他 VM 也需要访问 Tailscale 后面的远端内网段。这个场景可以把这台机器当成一个 proxy 节点：VPC 内机器把目标网段路由到 proxy，proxy 再通过 <code>tailscale0</code> 转发出去。</p>
 <p>示例环境：</p>
 <figure class="highlight text"><table><tr><td class="code"><pre><span class="line">A 节点:      172.16.10.8</span><br><span class="line">proxy 节点:  172.16.10.3 + tailscale0</span><br><span class="line">远端网段:    192.168.81.0/24</span><br><span class="line"></span><br><span class="line">A -&gt; proxy -&gt; tailscale0 -&gt; 远端网段</span><br></pre></td></tr></table></figure>
@@ -629,8 +629,8 @@
       </categories>
       <tags>
         <tag>Network</tag>
-        <tag>iptables</tag>
         <tag>Tailscale</tag>
+        <tag>iptables</tag>
       </tags>
   </entry>
   <entry>
