@@ -1,0 +1,156 @@
+<mxfile host="65bd71144e">
+    <diagram id="homelab-topology" name="Homelab 分层运行拓扑（截至 2026-07-17）">
+        <mxGraphModel dx="664" dy="791" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+
+                <mxCell id="title" value="Homelab 分层运行拓扑（截至 2026-07-17）" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=26;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
+                    <mxGeometry x="38" y="12" width="520" height="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="成都主网 192.168.50.0/24  ·  西安远端 192.168.59.0/24  ·  EasyTier Overlay" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;fontColor=#374151;" parent="1" vertex="1">
+                    <mxGeometry x="42" y="44" width="850" height="25" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="chengdu-area" value="&lt;b&gt;成都 · 主网络 192.168.50.0/24&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#E7FAF8;strokeColor=#30A6A6;dashed=1;dashPattern=8 4;strokeWidth=2;align=left;verticalAlign=top;spacing=14;fontSize=15;fontColor=#0F766E;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="78" width="1030" height="650" as="geometry"/>
+                </mxCell>
+                <mxCell id="xian-area" value="&lt;b&gt;西安 · 远端网络 192.168.59.0/24&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFF7E6;strokeColor=#F59E0B;dashed=1;dashPattern=8 4;strokeWidth=2;align=left;verticalAlign=top;spacing=14;fontSize=15;fontColor=#92400E;" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="78" width="460" height="650" as="geometry"/>
+                </mxCell>
+                <mxCell id="flow-area" value="&lt;b&gt;关键路径 / 运维提示&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#F1F5FF;strokeColor=#7C3AED;dashed=1;dashPattern=8 4;strokeWidth=2;align=left;verticalAlign=top;spacing=14;fontSize=15;fontColor=#5B21B6;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="755" width="1520" height="200" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="internet" value="&lt;b&gt;Internet / ISP&lt;/b&gt;&lt;br&gt;家庭宽带出口" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=2;fontSize=13;fontColor=#0C4A6E;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="125" width="170" height="84" as="geometry"/>
+                </mxCell>
+                <mxCell id="asus" value="&lt;b&gt;ASUS AX86U&lt;/b&gt;&lt;br&gt;192.168.50.1&lt;br&gt;主路由 / DHCP / 上游网关" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;align=center;verticalAlign=middle;fontSize=13;fontColor=#1E3A8A;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="110" width="250" height="118" as="geometry"/>
+                </mxCell>
+                <mxCell id="dhcp" value="&lt;b&gt;DHCP MAC 绑定策略&lt;/b&gt;&lt;br&gt;指定 iPhone / Mac / iPad&lt;br&gt;GW / DNS = 192.168.50.2&lt;br&gt;&lt;font color=&quot;#64748B&quot;&gt;配置关系，不代表流量路径&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#60A5FA;strokeWidth=2;align=center;verticalAlign=middle;fontSize=12;fontColor=#1F2937;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="105" width="350" height="128" as="geometry"/>
+                </mxCell>
+                <mxCell id="physical-lan" value="&lt;b&gt;物理 LAN / 交换网络&lt;/b&gt;&lt;br&gt;192.168.50.0/24 · 二层互通" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=2;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="315" y="265" width="340" height="58" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="pvehost" value="&lt;b&gt;N5105 PVE Host · 192.168.50.11&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#047857&quot;&gt;虚拟化故障域&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ECFDF5;strokeColor=#10B981;strokeWidth=2;align=left;verticalAlign=top;fontSize=13;fontColor=#064E3B;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="285" y="355" width="420" height="270" as="geometry"/>
+                </mxCell>
+                <mxCell id="pve-bridge" value="&lt;b&gt;PVE vmbr / vSwitch&lt;/b&gt;&lt;br&gt;VM 二层接入" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#34D399;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#065F46;spacing=6;" parent="pvehost" vertex="1">
+                    <mxGeometry x="40" y="53" width="340" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="immortalwrt" value="&lt;b&gt;ImmortalWrt VM · 192.168.50.2&lt;/b&gt;&lt;br&gt;旁路由 / DNS / 代理入口" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#F0FDFA;strokeColor=#0D9488;strokeWidth=2;align=center;verticalAlign=top;fontSize=13;fontColor=#134E4A;spacingTop=10;" parent="pvehost" vertex="1">
+                    <mxGeometry x="40" y="130" width="340" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="openclash" value="OpenClash&lt;br&gt;上网代理" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFEDD5;strokeColor=#FB923C;strokeWidth=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#7C2D12;spacing=4;" parent="immortalwrt" vertex="1">
+                    <mxGeometry x="20" y="60" width="90" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="easytier-chengdu" value="EasyTier&lt;br&gt;Overlay 节点" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#F3E8FF;strokeColor=#8B5CF6;strokeWidth=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#5B21B6;spacing=4;" parent="immortalwrt" vertex="1">
+                    <mxGeometry x="125" y="60" width="90" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="udpxy" value="udpxy&lt;br&gt;UDP → HTTP" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFEDD5;strokeColor=#FB923C;strokeWidth=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#7C2D12;spacing=4;" parent="immortalwrt" vertex="1">
+                    <mxGeometry x="230" y="60" width="90" height="42" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="apple-devices" value="&lt;b&gt;指定终端&lt;/b&gt;&lt;br&gt;iPhone / Mac / iPad&lt;br&gt;DHCP 获得 GW / DNS = 192.168.50.2" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#334155;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="755" y="350" width="270" height="108" as="geometry"/>
+                </mxCell>
+                <mxCell id="tv" value="&lt;b&gt;电视 / 播放端&lt;/b&gt;&lt;br&gt;通过 HTTP 播放 IPTV&lt;br&gt;来源：ImmortalWrt udpxy" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#334155;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="755" y="510" width="270" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="iptv-source" value="&lt;b&gt;运营商 IPTV / 组播源&lt;/b&gt;&lt;br&gt;上游接口 / VLAN 未确认" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFF7ED;strokeColor=#F97316;strokeWidth=2;align=center;verticalAlign=middle;fontSize=12;fontColor=#9A3412;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="510" width="185" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="failure-domain" value="⚠ &lt;b&gt;共同故障域&lt;/b&gt;：PVE 或 ImmortalWrt 停机时，指定终端的网关与 DNS 同时受影响。回退网关 / DNS 策略待确认。" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FEF2F2;strokeColor=#EF4444;strokeWidth=1.5;align=left;verticalAlign=middle;fontSize=12;fontColor=#991B1B;spacing=10;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="640" width="285" height="62" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="xian-router" value="&lt;b&gt;西安本地网关 / 路由&lt;/b&gt;&lt;br&gt;192.168.59.0/24" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#7FB3D5;strokeWidth=2;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1140" y="130" width="360" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="xian-lan" value="&lt;b&gt;西安物理 LAN&lt;/b&gt;&lt;br&gt;192.168.59.0/24 · 二层互通" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=2;align=center;verticalAlign=middle;fontSize=12;fontColor=#1F2937;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="1170" y="270" width="300" height="58" as="geometry"/>
+                </mxCell>
+                <mxCell id="nas" value="&lt;b&gt;群晖 NAS&lt;/b&gt;&lt;br&gt;192.168.59.115&lt;br&gt;EasyTier 节点 / 存储服务" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FDE68A;strokeColor=#D97706;strokeWidth=2;align=center;verticalAlign=middle;fontSize=14;fontColor=#78350F;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1175" y="390" width="290" height="125" as="geometry"/>
+                </mxCell>
+                <mxCell id="easytier-note" value="&lt;b&gt;跨子网访问前提&lt;/b&gt;&lt;br&gt;EasyTier 节点互通 ≠ 两侧 LAN 自动互通。需已配置子网代理、静态路由或 NAT，并保证回程路径；当前采用方式待现场确认。" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#F5F3FF;strokeColor=#8B5CF6;strokeWidth=1.5;align=left;verticalAlign=middle;fontSize=12;fontColor=#5B21B6;spacing=10;" parent="1" vertex="1">
+                    <mxGeometry x="1135" y="555" width="370" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="xian-security-note" value="NAS 服务不依赖公网直接暴露；具体访问控制不在本图确认范围。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;fontColor=#374151;" parent="1" vertex="1">
+                    <mxGeometry x="1150" y="675" width="345" height="35" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="flow-dhcp" value="&lt;b&gt;DHCP 配置&lt;/b&gt;&lt;br&gt;ASUS 按 MAC 给指定终端下发&lt;br&gt;GW / DNS = 192.168.50.2" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#60A5FA;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#1E3A8A;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="815" width="275" height="92" as="geometry"/>
+                </mxCell>
+                <mxCell id="flow-proxy" value="&lt;b&gt;指定终端上网&lt;/b&gt;&lt;br&gt;终端 → ImmortalWrt .2&lt;br&gt;→ ASUS .1 → Internet" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#22C55E;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#166534;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="815" width="275" height="92" as="geometry"/>
+                </mxCell>
+                <mxCell id="flow-easytier" value="&lt;b&gt;EasyTier Overlay&lt;/b&gt;&lt;br&gt;ImmortalWrt ⇄ NAS&lt;br&gt;跨子网依赖路由 / NAT / 回程" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#8B5CF6;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#5B21B6;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="680" y="815" width="275" height="92" as="geometry"/>
+                </mxCell>
+                <mxCell id="flow-iptv" value="&lt;b&gt;IPTV&lt;/b&gt;&lt;br&gt;运营商 UDP / 组播 → udpxy&lt;br&gt;→ 电视 HTTP 播放" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#F97316;strokeWidth=1.5;align=center;verticalAlign=middle;fontSize=12;fontColor=#9A3412;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="990" y="815" width="275" height="92" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend" value="&lt;b&gt;线条图例&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#475569&quot;&gt;灰色无箭头：二层 / 接入&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#2563EB&quot;&gt;蓝色点线：DHCP 配置&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#16A34A&quot;&gt;绿色箭头：上网流量&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#7C3AED&quot;&gt;紫色双向虚线：EasyTier&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#F97316&quot;&gt;橙色箭头：IPTV&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;fontColor=#374151;" parent="1" vertex="1">
+                    <mxGeometry x="1305" y="807" width="220" height="115" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e-asus-internet" value="WAN" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;fontColor=#166534;" parent="1" source="asus" target="internet" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-asus-dhcp" value="DHCP 服务" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=1.5;dashed=1;dashPattern=4 4;endArrow=open;endFill=0;fontSize=11;fontColor=#1D4ED8;" parent="1" source="asus" target="dhcp" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-dhcp-devices" value="DHCP Option" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=1.5;dashed=1;dashPattern=4 4;endArrow=open;endFill=0;fontSize=11;fontColor=#1D4ED8;" parent="1" source="dhcp" target="apple-devices" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-asus-lan" value="LAN 接入" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=2;startArrow=none;endArrow=none;fontSize=11;fontColor=#334155;" parent="1" source="asus" target="physical-lan" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-lan-pve" value="物理口" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=2;startArrow=none;endArrow=none;fontSize=11;fontColor=#334155;" parent="1" source="physical-lan" target="pvehost" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-bridge-wrt" value="VM NIC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=1.5;startArrow=none;endArrow=none;fontSize=10;fontColor=#334155;" parent="pvehost" source="pve-bridge" target="immortalwrt" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-devices-wrt" value="GW / DNS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2.5;endArrow=block;endFill=1;fontSize=11;fontColor=#166534;" parent="1" source="apple-devices" target="immortalwrt" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-wrt-asus" value="上游网关 .1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2.5;endArrow=block;endFill=1;fontSize=11;fontColor=#166534;" parent="1" source="immortalwrt" target="asus" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="735" y="475"/>
+                            <mxPoint x="735" y="250"/>
+                            <mxPoint x="425" y="250"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-iptv-udpxy" value="UDP / 组播" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F97316;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;fontColor=#C2410C;" parent="1" source="iptv-source" target="udpxy" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-udpxy-tv" value="HTTP IPTV" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F97316;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;fontColor=#C2410C;" parent="1" source="udpxy" target="tv" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-xian-router-lan" value="LAN 接入" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=2;startArrow=none;endArrow=none;fontSize=11;fontColor=#334155;" parent="1" source="xian-router" target="xian-lan" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-xian-lan-nas" value="LAN" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=2;startArrow=none;endArrow=none;fontSize=11;fontColor=#334155;" parent="1" source="xian-lan" target="nas" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-easytier-nas" value="EasyTier Overlay" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;strokeWidth=3;dashed=1;dashPattern=8 4;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=11;fontColor=#5B21B6;" parent="1" source="easytier-chengdu" target="nas" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="720" y="620"/>
+                            <mxPoint x="1075" y="620"/>
+                            <mxPoint x="1075" y="452"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
