@@ -11,18 +11,18 @@
 
 <title>每天学习一个命令: vmstat 统计系统资源使用</title>
 <meta name="keywords" content="每天学习一个命令: vmstat 统计系统资源使用, fuscoyu&#39;s Blog">
-<meta name="description" content="
-vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 活动信息。生成的第一个报告给出了自上次重新启动依赖的平均值。优势是可以按周期或实时采集上述信息。
+<meta name="description" content="vmstat 是 Linux 上经典的系统性能观测工具，用于查看进程调度、内存、Swap、块设备 I&#x2F;O、系统中断和 CPU 状态。它不负责直接给出“哪个进程有问题”，但很适合用作故障现场的第一眼体检工具。
 
-举">
+
+快速开始最常用的命">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta property="og:title" content="每天学习一个命令: vmstat 统计系统资源使用">
-<meta property="og:description" content="
-vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 活动信息。生成的第一个报告给出了自上次重新启动依赖的平均值。优势是可以按周期或实时采集上述信息。
+<meta property="og:description" content="vmstat 是 Linux 上经典的系统性能观测工具，用于查看进程调度、内存、Swap、块设备 I&#x2F;O、系统中断和 CPU 状态。它不负责直接给出“哪个进程有问题”，但很适合用作故障现场的第一眼体检工具。
 
-举">
+
+快速开始最常用的命">
 
 <link rel="shortcut icon" href="/favicon.ico">
 <link rel="stylesheet" href="/style/main.css">
@@ -100,55 +100,264 @@ vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 
       </div>
       <div class="post-content-wrapper">
         <div class="post-content">
-          <blockquote>
-<p>vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 活动信息。<br>生成的第一个报告给出了自上次重新启动依赖的平均值。优势是可以按周期或实时采集上述信息。</p>
+          <p><code>vmstat</code> 是 Linux 上经典的系统性能观测工具，用于查看进程调度、内存、Swap、块设备 I&#x2F;O、系统中断和 CPU 状态。它不负责直接给出“哪个进程有问题”，但很适合用作故障现场的第一眼体检工具。</p>
+<span id="more"></span>
+
+<h2 id="快速开始"><a href="#快速开始" class="headerlink" title="快速开始"></a>快速开始</h2><p>最常用的命令是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vmstat 1</span><br></pre></td></tr></table></figure>
+
+<p>表示每 1 秒输出一次，直到按 <code>Ctrl+C</code> 停止。若只想每 2 秒采样一次、共输出 5 次：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vmstat 2 5</span><br></pre></td></tr></table></figure>
+
+<p>典型输出如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st</span><br><span class="line"> 2  0      0  82348  12000 922000    0    0    10    20  500 1000  5  2 92  1  0</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>不带 <code>-y</code> 时，第一行数据是系统自启动以来的平均值，不能代表当前这一秒。观察实时趋势时可以忽略第一行，或直接执行 <code>vmstat -y 1</code>。</p>
 </blockquote>
-<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 1  0      0 759052 1845192 99157744    0    0     0    50    0    0  2  1 96  1  0</span><br></pre></td></tr></table></figure>
-<h3 id="解释输出信息"><a href="#解释输出信息" class="headerlink" title="解释输出信息"></a>解释输出信息</h3><p><code>procs</code>:</p>
-<pre><code>r: 正在运行的或者等待CPU运行的进程数。当这个值长时间超过了CPU个数，就会出现CPU瓶颈。一般负载大于3就算比较高，大于5是高，大于10系统就不正常。
-b: 等待 I/O 完成的阻塞的进程数。
-</code></pre>
-<p><code>memory</code>: </p>
-<pre><code>以下参数会受到 --unit 参数的影响
+<h2 id="六组核心指标"><a href="#六组核心指标" class="headerlink" title="六组核心指标"></a>六组核心指标</h2><h3 id="1-procs：进程调度"><a href="#1-procs：进程调度" class="headerlink" title="1. procs：进程调度"></a>1. procs：进程调度</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>关注点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r</code></td>
+<td>正在运行或等待 CPU 的可运行进程数</td>
+<td>持续高于逻辑 CPU 数量，说明 CPU 运行队列存在压力</td>
+</tr>
+<tr>
+<td><code>b</code></td>
+<td>处于不可中断睡眠的进程数</td>
+<td>持续升高时，通常需要排查 I&#x2F;O 或其他内核等待</td>
+</tr>
+</tbody></table>
+<p>先用 <code>nproc</code> 查看逻辑 CPU 数量，再判断 <code>r</code> 是否长期过高。不要用固定的 <code>r &gt; 3</code> 或 <code>r &gt; 5</code> 判断所有机器：4 核和 64 核机器的基线完全不同。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">nproc</span></span><br></pre></td></tr></table></figure>
 
-swpd: 交换内存使用量。
-free: 空闲内存的数量。
-buff: 缓冲区内存使用量。
-cache: 缓存区内存使用量。
-incat: 禁用的内存数量。(-a option)
-active: 可用的内存数量。(-a option)
-</code></pre>
-<p><code>swap</code>:</p>
-<pre><code>&gt; 以下参数会受到 `--unit` 参数的影响
+<h3 id="2-memory：内存"><a href="#2-memory：内存" class="headerlink" title="2. memory：内存"></a>2. memory：内存</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>swpd</code></td>
+<td>已使用的 Swap 空间</td>
+</tr>
+<tr>
+<td><code>free</code></td>
+<td>完全空闲的内存</td>
+</tr>
+<tr>
+<td><code>buff</code></td>
+<td>用作 buffer 的内存</td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td>用作 page cache 的内存</td>
+</tr>
+<tr>
+<td><code>inact</code></td>
+<td>非活跃内存，仅在 <code>-a</code> 模式显示</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td>活跃内存，仅在 <code>-a</code> 模式显示</td>
+</tr>
+</tbody></table>
+<p><code>free</code> 很小不等于内存不足。Linux 会利用空闲内存做缓存，判断内存压力时应结合 <code>si</code>、<code>so</code>，并使用 <code>free -h</code> 查看 <code>available</code>。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">free -h</span><br><span class="line">vmstat -a 1</span><br></pre></td></tr></table></figure>
 
-si: 从磁盘交换到内存的内存量(/s)。
-so: 从内存交换到磁盘内存量(/s)。
-</code></pre>
-<p><code>io</code>:</p>
-<pre><code>bi: 从块设备接受的块(block/s)。
-bo: 发送到块设备的块(block/s)。
-</code></pre>
-<p><code>system</code>:</p>
-<pre><code>in: 每秒钟系统中断数，包括时钟中断。
-cs: 每秒钟系统切换上下文的次数。
-</code></pre>
-<p><code>cpu</code>:</p>
-<pre><code>以下参数之和是总的CPU时间。
+<h3 id="3-swap：换页活动"><a href="#3-swap：换页活动" class="headerlink" title="3. swap：换页活动"></a>3. swap：换页活动</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>si</code></td>
+<td>每秒从 Swap 换入内存的数据量</td>
+</tr>
+<tr>
+<td><code>so</code></td>
+<td>每秒从内存换出到 Swap 的数据量</td>
+</tr>
+</tbody></table>
+<p><code>swpd</code> 非零只表示已有页面位于 Swap，并不说明当前仍有内存压力。如果 <code>si</code>、<code>so</code> 持续较高，才说明系统正在频繁换页，应用延迟通常也会随之上升。</p>
+<h3 id="4-io：块设备-I-x2F-O"><a href="#4-io：块设备-I-x2F-O" class="headerlink" title="4. io：块设备 I&#x2F;O"></a>4. io：块设备 I&#x2F;O</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>bi</code></td>
+<td>每秒从块设备接收的块数</td>
+</tr>
+<tr>
+<td><code>bo</code></td>
+<td>每秒发送到块设备的块数</td>
+</tr>
+</tbody></table>
+<p><code>vmstat</code> 只能反映整机 I&#x2F;O 活动，无法定位具体磁盘，也不能仅凭 <code>bi</code>、<code>bo</code> 判断磁盘是否饱和。进一步分析应使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iostat -x 1</span><br></pre></td></tr></table></figure>
 
-us: CPU在用户空间所占用的时间。
-sy: CPU在内核空间所占用的时间。
-id: CPU空闲时间。
-wa: CPU在等待IO所占用的实际。
-st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time` 维持在很高的数值上，大概率是服务器创建虚拟机太多。)
-</code></pre>
-<h3 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h3><h4 id="每2秒显示报告共5次"><a href="#每2秒显示报告共5次" class="headerlink" title="每2秒显示报告共5次"></a>每2秒显示报告共5次</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat 2 5</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 0  1      0 757084 1844672 99160048    0    0     0    50    0    0  2  1 96  1  0</span><br><span class="line"> 2  1      0 756924 1844672 99160096    0    0     8   604 4883 9736  4  1 95  1  0</span><br><span class="line"> 0  0      0 757040 1844672 99160144    0    0     8   444 3395 8276  2  0 97  1  0</span><br><span class="line"> 0  0      0 757600 1844672 99160184    0    0     0   466 2905 7775  1  0 99  1  0</span><br><span class="line"> 0  0      0 758116 1844676 99160184    0    0     0  2440 3070 7604  1  0 99  1  0</span><br></pre></td></tr></table></figure>
+<p>重点关注目标设备的吞吐、IOPS、<code>await</code> 和 <code>%util</code>，并结合设备类型与业务基线判断。</p>
+<h3 id="5-system：中断与上下文切换"><a href="#5-system：中断与上下文切换" class="headerlink" title="5. system：中断与上下文切换"></a>5. system：中断与上下文切换</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>in</code></td>
+<td>每秒中断次数，包括时钟中断</td>
+</tr>
+<tr>
+<td><code>cs</code></td>
+<td>每秒上下文切换次数</td>
+</tr>
+</tbody></table>
+<p><code>in</code>、<code>cs</code> 没有适用于所有机器的固定阈值，应观察它们是否相对历史基线突增。<code>cs</code> 异常升高时，可继续排查大量线程或进程竞争、高频网络请求、锁竞争以及频繁唤醒。</p>
+<h3 id="6-cpu：CPU-时间分布"><a href="#6-cpu：CPU-时间分布" class="headerlink" title="6. cpu：CPU 时间分布"></a>6. cpu：CPU 时间分布</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>us</code></td>
+<td>用户态 CPU 时间占比</td>
+</tr>
+<tr>
+<td><code>sy</code></td>
+<td>内核态 CPU 时间占比</td>
+</tr>
+<tr>
+<td><code>id</code></td>
+<td>CPU 空闲时间占比</td>
+</tr>
+<tr>
+<td><code>wa</code></td>
+<td>CPU 等待 I&#x2F;O 的时间占比</td>
+</tr>
+<tr>
+<td><code>st</code></td>
+<td>虚拟机等待宿主机分配 CPU 的时间占比</td>
+</tr>
+</tbody></table>
+<p>可以简记为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">us = 应用程序在计算</span><br><span class="line">sy = 内核在工作</span><br><span class="line">wa = CPU 在等待 I/O</span><br><span class="line">st = 虚拟机想运行，但物理 CPU 时间被宿主机占用</span><br></pre></td></tr></table></figure>
 
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a target="_blank" rel="noopener" href="https://manned.org/vmstat#head2">vmstat - manned.org</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解CPU steal time - MKY-门可意 - 博客园</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/ggjucheng/archive/2012/01/05/2312625.html">Linux vmstat命令实战详解 - ggjucheng - 博客园</a></p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">us sy id wa st</span><br><span class="line">90  5  5  0  0</span><br></pre></td></tr></table></figure>
+
+<p>表示 CPU 主要用于运行用户程序，整体已接近打满。如果是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">us sy id wa st</span><br><span class="line">10  5 20 65  0</span><br></pre></td></tr></table></figure>
+
+<p>则大量 CPU 时间消耗在等待 I&#x2F;O，应转向存储链路排查。<code>wa</code> 高只是线索，不等于已经证明磁盘饱和。</p>
+<p>在 KVM、云主机等虚拟化环境中还要特别关注 <code>st</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">us sy id wa st</span><br><span class="line">20  5 20  0 55</span><br></pre></td></tr></table></figure>
+
+<p><code>st=55%</code> 表示虚拟机有大量时间等待 Hypervisor 调度物理 CPU，常见原因包括宿主机 CPU 超分、物理 CPU 竞争或调度压力。</p>
+<h2 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h2><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>vmstat 1</code></td>
+<td>每秒持续采样</td>
+</tr>
+<tr>
+<td><code>vmstat 2 5</code></td>
+<td>每 2 秒采样一次，共 5 次</td>
+</tr>
+<tr>
+<td><code>vmstat -y 1</code></td>
+<td>跳过“自系统启动以来”的第一行统计</td>
+</tr>
+<tr>
+<td><code>vmstat -w 1</code></td>
+<td>使用更宽的列宽显示</td>
+</tr>
+<tr>
+<td><code>vmstat -a 1</code></td>
+<td>显示 active&#x2F;inactive 内存</td>
+</tr>
+<tr>
+<td><code>vmstat -S M 1</code></td>
+<td>以 MiB 显示受单位参数影响的字段</td>
+</tr>
+<tr>
+<td><code>vmstat -s</code></td>
+<td>显示内存和系统事件汇总</td>
+</tr>
+<tr>
+<td><code>vmstat -d</code></td>
+<td>显示磁盘统计</td>
+</tr>
+</tbody></table>
+<p>不同发行版所带的 <code>procps-ng</code> 版本可能支持不同参数，可用 <code>vmstat --help</code> 和 <code>man vmstat</code> 核对当前系统。</p>
+<h2 id="实际排障思路"><a href="#实际排障思路" class="headerlink" title="实际排障思路"></a>实际排障思路</h2><p>执行 <code>vmstat -y 1</code> 后，先看 <code>r</code>、<code>b</code>、<code>si/so</code> 和 <code>us/sy/id/wa/st</code>，再按以下模式缩小范围：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>初步判断</th>
+<th>下一步</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r</code> 持续高、<code>us</code> 高</td>
+<td>应用消耗大量 CPU</td>
+<td><code>mpstat -P ALL 1</code>、<code>pidstat -u 1</code></td>
+</tr>
+<tr>
+<td><code>r</code> 持续高、<code>sy</code> 高</td>
+<td>内核态开销较高</td>
+<td>检查 syscall、网络、中断、锁竞争</td>
+</tr>
+<tr>
+<td><code>b</code> 高、<code>wa</code> 高</td>
+<td>存在 I&#x2F;O 或内核等待</td>
+<td><code>iostat -x 1</code>、检查 D 状态进程</td>
+</tr>
+<tr>
+<td><code>si/so</code> 持续高</td>
+<td>内存压力和频繁换页</td>
+<td><code>free -h</code>、<code>pidstat -r 1</code></td>
+</tr>
+<tr>
+<td><code>st</code> 高</td>
+<td>虚拟机受到宿主机 CPU 竞争影响</td>
+<td>检查 Hypervisor 的 CPU 超分与调度</td>
+</tr>
+</tbody></table>
+<p>常用的组合命令是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">vmstat -y 1</span><br><span class="line">iostat -x 1</span><br><span class="line">mpstat -P ALL 1</span><br><span class="line">pidstat 1</span><br></pre></td></tr></table></figure>
+
+<p><code>vmstat</code> 负责判断问题大致落在 CPU、内存还是 I&#x2F;O；<code>mpstat</code> 继续拆分到 CPU 核，<code>iostat</code> 拆分到块设备，<code>pidstat</code> 再定位到具体进程。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://gitlab.com/procps-ng/procps/-/blob/master/man/vmstat.8">procps-ng：vmstat 官方手册源码</a></li>
+<li><a target="_blank" rel="noopener" href="https://gitlab.com/procps-ng/procps">procps-ng 项目</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解 CPU steal time</a></li>
+</ul>
 
         </div>
           
         <div class="top-div">
-          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%BE%E4%BE%8B"><span class="top-box-text">举例</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E8%A7%A3%E9%87%8A%E8%BE%93%E5%87%BA%E4%BF%A1%E6%81%AF"><span class="top-box-text">解释输出信息</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%B8%B8%E7%94%A8%E5%8F%82%E6%95%B0"><span class="top-box-text">常用参数</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E6%96%87%E7%AB%A0"><span class="top-box-text">参考文章</span></a></li></ol>
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B"><span class="top-box-text">快速开始</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%85%AD%E7%BB%84%E6%A0%B8%E5%BF%83%E6%8C%87%E6%A0%87"><span class="top-box-text">六组核心指标</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-procs%EF%BC%9A%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6"><span class="top-box-text">1. procs：进程调度</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-memory%EF%BC%9A%E5%86%85%E5%AD%98"><span class="top-box-text">2. memory：内存</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-swap%EF%BC%9A%E6%8D%A2%E9%A1%B5%E6%B4%BB%E5%8A%A8"><span class="top-box-text">3. swap：换页活动</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#4-io%EF%BC%9A%E5%9D%97%E8%AE%BE%E5%A4%87-I-x2F-O"><span class="top-box-text">4. io：块设备 I&#x2F;O</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#5-system%EF%BC%9A%E4%B8%AD%E6%96%AD%E4%B8%8E%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2"><span class="top-box-text">5. system：中断与上下文切换</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#6-cpu%EF%BC%9ACPU-%E6%97%B6%E9%97%B4%E5%88%86%E5%B8%83"><span class="top-box-text">6. cpu：CPU 时间分布</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%B8%B8%E7%94%A8%E5%8F%82%E6%95%B0"><span class="top-box-text">常用参数</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%AE%9E%E9%99%85%E6%8E%92%E9%9A%9C%E6%80%9D%E8%B7%AF"><span class="top-box-text">实际排障思路</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="top-box-text">参考资料</span></a></li></ol>
         </div>
           
       </div>

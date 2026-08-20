@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>使用 libvirt 和 Alpine 搭建最小 PXE 实验</title>
+<meta name="keywords" content="使用 libvirt 和 Alpine 搭建最小 PXE 实验, fuscoyu&#39;s Blog">
+<meta name="description" content="
+本文由 Codex 根据 PXE、Alpine 与 VirtualBMC 实测和讨论过程辅助整理生成。
+
+为了理解裸金属装机流程，我在一台 KVM 宿主机上搭建了最小 PXE 实验：客户端只有 1 vCPU、512 MiB 内存和 2 G">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="使用 libvirt 和 Alpine 搭建最小 PXE 实验">
+<meta property="og:description" content="
+本文由 Codex 根据 PXE、Alpine 与 VirtualBMC 实测和讨论过程辅助整理生成。
+
+为了理解裸金属装机流程，我在一台 KVM 宿主机上搭建了最小 PXE 实验：客户端只有 1 vCPU、512 MiB 内存和 2 G">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">使用 libvirt 和 Alpine 搭建最小 PXE 实验</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-08-19</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/PXE/">
+              PXE
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/iPXE/">
+              iPXE
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Alpine-Linux/">
+              Alpine Linux
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/libvirt/">
+              libvirt
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/VirtualBMC/">
+              VirtualBMC
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/IPMI/">
+              IPMI
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <blockquote>
+<p>本文由 Codex 根据 PXE、Alpine 与 VirtualBMC 实测和讨论过程辅助整理生成。</p>
+</blockquote>
+<p>为了理解裸金属装机流程，我在一台 KVM 宿主机上搭建了最小 PXE 实验：客户端只有 <code>1 vCPU</code>、<code>512 MiB</code> 内存和 <code>2 GiB</code> 磁盘，通过网络启动 Alpine，再将系统安装到虚拟磁盘。</p>
+<p>最终 qcow2 文件实际占用约 <code>90 MiB</code>，适合资源有限的测试环境。</p>
+<span id="more"></span>
+
+<h2 id="PXE-启动原理"><a href="#PXE-启动原理" class="headerlink" title="PXE 启动原理"></a>PXE 启动原理</h2><p>PXE 不是操作系统安装器。它解决的是：<strong>一台没有可用系统的机器，如何通过网络获得并启动下一段程序。</strong></p>
+<p>完整链路如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">BIOS/UEFI</span><br><span class="line">  ↓ 选择网卡启动</span><br><span class="line">PXE/iPXE 固件</span><br><span class="line">  ↓ DHCP 获取 IP 和启动地址</span><br><span class="line">boot.ipxe</span><br><span class="line">  ↓ HTTP 下载</span><br><span class="line">Linux kernel + initramfs + modloop</span><br><span class="line">  ↓</span><br><span class="line">内存中的 Alpine 临时系统</span><br><span class="line">  ↓ setup-alpine</span><br><span class="line">安装到虚拟磁盘 /dev/vda</span><br><span class="line">  ↓ 重启</span><br><span class="line">从硬盘启动 Alpine</span><br></pre></td></tr></table></figure>
+
+<h3 id="DHCP：告诉客户端去哪里启动"><a href="#DHCP：告诉客户端去哪里启动" class="headerlink" title="DHCP：告诉客户端去哪里启动"></a>DHCP：告诉客户端去哪里启动</h3><p>PXE 客户端首先通过 DHCP 的 Discover、Offer、Request、ACK 获取网络配置。与普通 DHCP 不同的是，服务端还会返回启动文件地址：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">IP：192.168.130.110</span><br><span class="line">网关：192.168.130.1</span><br><span class="line">启动文件：http://192.168.130.1:8080/alpine/boot.ipxe</span><br></pre></td></tr></table></figure>
+
+<h3 id="iPXE：下载并启动-Linux"><a href="#iPXE：下载并启动-Linux" class="headerlink" title="iPXE：下载并启动 Linux"></a>iPXE：下载并启动 Linux</h3><p><code>boot.ipxe</code> 类似网络版 GRUB 配置。iPXE 读取脚本后，通过 HTTP 下载内核和 initramfs，再把 CPU 执行权交给 Linux 内核。</p>
+<p>传统 PXE 常用 TFTP；本实验的 QEMU 网卡固件已经支持 iPXE，因此直接使用 HTTP，省去了 TFTP。nginx 只负责提供静态文件，并不负责安装系统。</p>
+<h3 id="setup-alpine：真正写入磁盘"><a href="#setup-alpine：真正写入磁盘" class="headerlink" title="setup-alpine：真正写入磁盘"></a>setup-alpine：真正写入磁盘</h3><p>内核和 initramfs 启动后，Alpine 仍运行在内存中。此时 PXE 的任务已经完成，磁盘尚未安装系统。</p>
+<p>真正执行分区、格式化、安装软件包和引导程序的是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">setup-alpine</span><br></pre></td></tr></table></figure>
+
+<p>一句话概括：<strong>PXE 把安装环境送进内存，安装器再把操作系统写入磁盘。</strong></p>
+<h2 id="内核、initramfs-与无盘系统"><a href="#内核、initramfs-与无盘系统" class="headerlink" title="内核、initramfs 与无盘系统"></a>内核、initramfs 与无盘系统</h2><p>以下内容用于解释启动原理，不属于本次 Alpine、VirtualBMC 实测范围。</p>
+<h3 id="Linux-完整启动链路"><a href="#Linux-完整启动链路" class="headerlink" title="Linux 完整启动链路"></a>Linux 完整启动链路</h3><p>无论从本地磁盘还是 PXE 启动，Linux 获得 CPU 控制权后的过程基本相同：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">上电</span><br><span class="line">  ↓</span><br><span class="line">BIOS/UEFI：硬件自检并选择启动设备</span><br><span class="line">  ↓</span><br><span class="line">启动入口</span><br><span class="line">  ├─ 磁盘：GRUB 等引导程序</span><br><span class="line">  └─ 网络：固件 PXE 客户端 → NBP/iPXE</span><br><span class="line">  ↓</span><br><span class="line">引导阶段</span><br><span class="line">  ├─ 将 Linux kernel 放入内存</span><br><span class="line">  ├─ 将 initramfs 放入内存</span><br><span class="line">  └─ 传递 kernel command line</span><br><span class="line">  ↓</span><br><span class="line">Linux 内核</span><br><span class="line">  ├─ 自解压</span><br><span class="line">  ├─ 初始化 CPU、内存、中断和调度器</span><br><span class="line">  ├─ 初始化内置驱动</span><br><span class="line">  └─ 解压 initramfs，挂载为临时根目录 /</span><br><span class="line">  ↓</span><br><span class="line">initramfs 中的 /init（早期 PID 1）</span><br><span class="line">  ├─ 挂载 /proc、/sys、/dev</span><br><span class="line">  ├─ 加载磁盘、网卡等内核模块</span><br><span class="line">  ├─ 识别 RAID、LVM、加密卷或网络根设备</span><br><span class="line">  └─ 挂载真正的根文件系统</span><br><span class="line">  ↓ switch_root</span><br><span class="line">真正根文件系统中的 /sbin/init</span><br><span class="line">  ↓</span><br><span class="line">systemd、OpenRC 等初始化系统</span><br><span class="line">  ├─ 挂载其他文件系统</span><br><span class="line">  ├─ 配置网络</span><br><span class="line">  ├─ 启动系统服务</span><br><span class="line">  └─ 提供控制台或登录界面</span><br></pre></td></tr></table></figure>
+
+<p>传统磁盘启动与 PXE 启动的主要区别只在前半段：</p>
+<table>
+<thead>
+<tr>
+<th>启动方式</th>
+<th>内核和 initramfs 的来源</th>
+<th>真正的根文件系统可能位于</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>磁盘启动</td>
+<td>GRUB 从本地磁盘读取</td>
+<td>本地磁盘</td>
+</tr>
+<tr>
+<td>PXE 启动</td>
+<td>固件 PXE 客户端加载 iPXE，再由 iPXE 从网络下载</td>
+<td>内存、本地磁盘或网络存储</td>
+</tr>
+</tbody></table>
+<p>如果 initramfs 已经包含完整用户空间，它可以继续作为最终根文件系统，不一定执行 <code>switch_root</code>。这正是部分 Live、救援和纯内存系统的工作方式。</p>
+<h3 id="为什么内核加-initramfs-就能启动-Linux"><a href="#为什么内核加-initramfs-就能启动-Linux" class="headerlink" title="为什么内核加 initramfs 就能启动 Linux"></a>为什么内核加 initramfs 就能启动 Linux</h3><p>本实验由 iPXE 启动 Alpine 时，至少需要向客户端提供两部分：</p>
+<ul>
+<li>内核：初始化 CPU、内存、中断和设备，管理进程与硬件资源</li>
+<li>initramfs：提供早期用户空间，包括 <code>/init</code>、BusyBox、驱动加载和网络脚本</li>
+</ul>
+<p>启动过程是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">iPXE 将 kernel 和 initramfs 放入内存</span><br><span class="line">  ↓</span><br><span class="line">跳转执行 Linux 内核</span><br><span class="line">  ↓</span><br><span class="line">内核解压 initramfs，并将其作为临时根目录 /</span><br><span class="line">  ↓</span><br><span class="line">执行 /init，成为 PID 1</span><br><span class="line">  ↓</span><br><span class="line">加载驱动、配置网络、寻找真正的根文件系统</span><br><span class="line">  ↓</span><br><span class="line">继续运行内存系统，或通过 switch_root 切换到磁盘/网络根文件系统</span><br></pre></td></tr></table></figure>
+
+<p>内核只有管理硬件和执行程序的能力；initramfs 只有文件和启动工具。两者结合，才构成一个可以运行的最小 Linux。它可以只是安装环境，也可以是完全运行在内存里的系统，但不代表操作系统已经安装到磁盘。</p>
+<p>initramfs 并非所有 Linux 启动方式都必需。如果根文件系统位于内核可直接访问的设备上，且所需的文件系统与存储驱动已编译进内核，内核也可以根据 <code>root=</code> 参数直接挂载磁盘根文件系统并执行其中的 <code>/sbin/init</code>。本实验需要 initramfs，是因为它要先提供网络启动所需的早期用户空间。</p>
+<h3 id="initramfs-为什么不能无限增大"><a href="#initramfs-为什么不能无限增大" class="headerlink" title="initramfs 为什么不能无限增大"></a>initramfs 为什么不能无限增大</h3><p>initramfs 没有统一的固定大小上限，实际边界取决于客户端内存和固件、引导器的内存布局。启动时内存中可能同时存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">压缩的 initramfs</span><br><span class="line">+ 解压后的内存根文件系统</span><br><span class="line">+ Linux 内核及其数据结构</span><br><span class="line">+ 驱动、网络缓冲区和用户进程</span><br><span class="line">= 启动内存峰值</span><br></pre></td></tr></table></figure>
+
+<p>因此不能只看 initramfs 压缩文件的大小。文件过大时，可能在 iPXE 分配内存、内核解压或用户空间启动阶段失败。</p>
+<p>本实验将内容拆分为 <code>vmlinuz-virt</code>、<code>initramfs-virt</code>、<code>modloop-virt</code> 和 HTTP APK 仓库，目的之一就是让 initramfs 只保留早期启动必需内容，额外模块与软件包在网络可用后再按需获取。</p>
+<h3 id="网吧无盘-Windows-如何启动"><a href="#网吧无盘-Windows-如何启动" class="headerlink" title="网吧无盘 Windows 如何启动"></a>网吧无盘 Windows 如何启动</h3><p>无盘系统通常不会把完整 Windows 和所有游戏一次性复制到内存，而是把服务器上的远程块设备伪装成本地系统盘：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">客户机的 C:</span><br><span class="line">= 服务器上的公共只读系统镜像</span><br><span class="line">+ 当前客户机的独立写入层</span><br></pre></td></tr></table></figure>
+
+<p>公共镜像便于统一更新，写时复制层避免多台客户机相互覆盖；服务器 NVMe、内存和客户端内存则缓存热点数据。</p>
+<p>Windows 无盘启动主要有两种链路。</p>
+<p>第一种由 iPXE 直接连接 iSCSI：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">BIOS/UEFI → PXE/iPXE → 挂载 iSCSI LUN</span><br><span class="line">→ 读取远程盘上的 Windows Boot Manager</span><br><span class="line">→ Windows 内核和启动级网卡/iSCSI 驱动接管连接</span><br><span class="line">→ 从远程 C: 继续启动</span><br></pre></td></tr></table></figure>
+
+<p>iPXE 脚本示意如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">#!ipxe</span><br><span class="line">dhcp</span><br><span class="line">sanboot iscsi:192.168.130.1::::iqn.2026-08.local:windows</span><br></pre></td></tr></table></figure>
+
+<p>iPXE 会通过 iBFT 等机制向操作系统描述 iSCSI 启动盘。因此，这条链路不要求先启动 WinPE；远程盘在 Windows Boot Manager 运行前就已经连接。</p>
+<p>第二种先启动 WinPE 或厂商的精简引导环境：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">BIOS/UEFI → PXE → WinPE/厂商引导环境</span><br><span class="line">→ 加载网卡和网络磁盘驱动</span><br><span class="line">→ 连接远程系统盘</span><br><span class="line">→ 链式启动正式 Windows</span><br></pre></td></tr></table></figure>
+
+<p>这种模式下，WinPE 的作用与 Linux initramfs 相似：先提供最小用户空间，获得网络存储能力，再找到真正的系统盘。无论采用哪种方式，关键都不是“必须启动 WinPE”，而是 <strong>Windows 第一次需要读取系统盘之前，远程磁盘必须已经可用；Windows 接管后，启动级驱动必须能继续维持连接。</strong></p>
+<h2 id="实验架构"><a href="#实验架构" class="headerlink" title="实验架构"></a>实验架构</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">KVM 宿主机</span><br><span class="line">├── libvirt dnsmasq：DHCP 与启动地址</span><br><span class="line">├── nginx :8080：iPXE、内核、initramfs、modloop、APK</span><br><span class="line">└── pxe-alpine VM</span><br><span class="line">    ├── 1 vCPU</span><br><span class="line">    ├── 512 MiB RAM</span><br><span class="line">    ├── 2 GiB qcow2</span><br><span class="line">    └── 192.168.130.110</span><br></pre></td></tr></table></figure>
+
+<p>为避免影响现有网络，DHCP 仅绑定到独立的 <code>virbr-pxe</code> 网桥。</p>
+<h2 id="操作过程"><a href="#操作过程" class="headerlink" title="操作过程"></a>操作过程</h2><h3 id="1-创建隔离-PXE-网络"><a href="#1-创建隔离-PXE-网络" class="headerlink" title="1. 创建隔离 PXE 网络"></a>1. 创建隔离 PXE 网络</h3><p>创建 <code>pxe-lab.xml</code>：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">network</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">name</span>&gt;</span>pxe-lab<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">forward</span> <span class="attr">mode</span>=<span class="string">&#x27;nat&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">bridge</span> <span class="attr">name</span>=<span class="string">&#x27;virbr-pxe&#x27;</span> <span class="attr">stp</span>=<span class="string">&#x27;on&#x27;</span> <span class="attr">delay</span>=<span class="string">&#x27;0&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">ip</span> <span class="attr">address</span>=<span class="string">&#x27;192.168.130.1&#x27;</span> <span class="attr">netmask</span>=<span class="string">&#x27;255.255.255.0&#x27;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">dhcp</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">range</span> <span class="attr">start</span>=<span class="string">&#x27;192.168.130.100&#x27;</span> <span class="attr">end</span>=<span class="string">&#x27;192.168.130.200&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">host</span> <span class="attr">mac</span>=<span class="string">&#x27;52:54:00:13:00:10&#x27;</span></span></span><br><span class="line"><span class="tag">            <span class="attr">name</span>=<span class="string">&#x27;pxe-alpine&#x27;</span></span></span><br><span class="line"><span class="tag">            <span class="attr">ip</span>=<span class="string">&#x27;192.168.130.110&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">bootp</span> <span class="attr">file</span>=<span class="string">&#x27;http://192.168.130.1:8080/alpine/boot.ipxe&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">dhcp</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">ip</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">network</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>启用网络：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">virsh net-define pxe-lab.xml</span><br><span class="line">virsh net-autostart pxe-lab</span><br><span class="line">virsh net-start pxe-lab</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-准备-Alpine-启动文件"><a href="#2-准备-Alpine-启动文件" class="headerlink" title="2. 准备 Alpine 启动文件"></a>2. 准备 Alpine 启动文件</h3><p>nginx 在 <code>8080</code> 端口暴露 <code>/var/lib/ironic/httpboot</code>。创建目录并下载 Alpine <code>virt</code> netboot 文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p /var/lib/ironic/httpboot/alpine</span><br><span class="line"><span class="built_in">cd</span> /var/lib/ironic/httpboot/alpine</span><br><span class="line"></span><br><span class="line">base=https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/netboot-3.24.1</span><br><span class="line">curl -fLO <span class="string">&quot;<span class="variable">$base</span>/vmlinuz-virt&quot;</span></span><br><span class="line">curl -fLO <span class="string">&quot;<span class="variable">$base</span>/initramfs-virt&quot;</span></span><br><span class="line">curl -fLO <span class="string">&quot;<span class="variable">$base</span>/modloop-virt&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>三份文件合计约 <code>43 MiB</code>：</p>
+<ul>
+<li><code>vmlinuz-virt</code>：Linux 内核</li>
+<li><code>initramfs-virt</code>：启动早期的内存根文件系统</li>
+<li><code>modloop-virt</code>：Alpine 内核模块</li>
+</ul>
+<h3 id="3-编写-iPXE-脚本"><a href="#3-编写-iPXE-脚本" class="headerlink" title="3. 编写 iPXE 脚本"></a>3. 编写 iPXE 脚本</h3><p>创建 <code>/var/lib/ironic/httpboot/alpine/boot.ipxe</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">#!ipxe</span><br><span class="line">dhcp</span><br><span class="line"></span><br><span class="line">set base-url http://192.168.130.1:8080/alpine</span><br><span class="line"></span><br><span class="line">kernel $&#123;base-url&#125;/vmlinuz-virt \</span><br><span class="line">  console=tty0 console=ttyS0,115200 \</span><br><span class="line">  modules=loop,squashfs,sd-mod,virtio_pci,virtio_blk,virtio_net \</span><br><span class="line">  alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.24/main \</span><br><span class="line">  modloop=$&#123;base-url&#125;/modloop-virt</span><br><span class="line"></span><br><span class="line">initrd $&#123;base-url&#125;/initramfs-virt</span><br><span class="line">boot</span><br></pre></td></tr></table></figure>
+
+<p>先确认 HTTP 文件可访问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">curl http://192.168.130.1:8080/alpine/boot.ipxe</span><br><span class="line">curl -I http://192.168.130.1:8080/alpine/vmlinuz-virt</span><br></pre></td></tr></table></figure>
+
+<p>本次实验中公网仓库较慢，因此后来把安装需要的约 48 个基础包缓存到 nginx，并将 <code>alpine_repo</code> 改为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">http://192.168.130.1:8080/alpine/main</span><br></pre></td></tr></table></figure>
+
+<p>使用本地仓库时，应答文件中的 <code>APKREPOSOPTS</code> 也要改成同一地址。</p>
+<p>不要直接把 Alpine <code>virt</code> ISO 当作完整安装仓库，它可能缺少 <code>linux-virt</code>、<code>syslinux</code> 等磁盘安装包。</p>
+<h3 id="4-创建最小虚拟机"><a href="#4-创建最小虚拟机" class="headerlink" title="4. 创建最小虚拟机"></a>4. 创建最小虚拟机</h3><p>先创建稀疏磁盘：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">qemu-img create -f qcow2 \</span><br><span class="line">  /var/lib/libvirt/images/pxe-alpine.qcow2 2G</span><br></pre></td></tr></table></figure>
+
+<p>虚拟机关键配置如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">domain</span> <span class="attr">type</span>=<span class="string">&#x27;kvm&#x27;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">name</span>&gt;</span>pxe-alpine<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">memory</span> <span class="attr">unit</span>=<span class="string">&#x27;MiB&#x27;</span>&gt;</span>512<span class="tag">&lt;/<span class="name">memory</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">vcpu</span>&gt;</span>1<span class="tag">&lt;/<span class="name">vcpu</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">os</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">type</span> <span class="attr">arch</span>=<span class="string">&#x27;x86_64&#x27;</span> <span class="attr">machine</span>=<span class="string">&#x27;pc&#x27;</span>&gt;</span>hvm<span class="tag">&lt;/<span class="name">type</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;network&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;hd&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">os</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">devices</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">disk</span> <span class="attr">type</span>=<span class="string">&#x27;file&#x27;</span> <span class="attr">device</span>=<span class="string">&#x27;disk&#x27;</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">driver</span> <span class="attr">name</span>=<span class="string">&#x27;qemu&#x27;</span> <span class="attr">type</span>=<span class="string">&#x27;qcow2&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">source</span> <span class="attr">file</span>=<span class="string">&#x27;/var/lib/libvirt/images/pxe-alpine.qcow2&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">target</span> <span class="attr">dev</span>=<span class="string">&#x27;vda&#x27;</span> <span class="attr">bus</span>=<span class="string">&#x27;virtio&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">disk</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">interface</span> <span class="attr">type</span>=<span class="string">&#x27;network&#x27;</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">mac</span> <span class="attr">address</span>=<span class="string">&#x27;52:54:00:13:00:10&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">source</span> <span class="attr">network</span>=<span class="string">&#x27;pxe-lab&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">model</span> <span class="attr">type</span>=<span class="string">&#x27;virtio&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">interface</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">serial</span> <span class="attr">type</span>=<span class="string">&#x27;pty&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">console</span> <span class="attr">type</span>=<span class="string">&#x27;pty&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">graphics</span> <span class="attr">type</span>=<span class="string">&#x27;vnc&#x27;</span> <span class="attr">port</span>=<span class="string">&#x27;-1&#x27;</span> <span class="attr">autoport</span>=<span class="string">&#x27;yes&#x27;</span> <span class="attr">listen</span>=<span class="string">&#x27;127.0.0.1&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">devices</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">domain</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>保存为 <code>pxe-alpine.xml</code>，然后启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">virsh define pxe-alpine.xml</span><br><span class="line">virsh start pxe-alpine</span><br><span class="line">virsh console pxe-alpine</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-将-Alpine-安装到磁盘"><a href="#5-将-Alpine-安装到磁盘" class="headerlink" title="5. 将 Alpine 安装到磁盘"></a>5. 将 Alpine 安装到磁盘</h3><p>进入内存中的 Alpine 后，可执行 <code>setup-alpine</code> 交互式安装。为了减少重复输入，本实验使用应答文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">KEYMAPOPTS=none</span><br><span class="line">HOSTNAMEOPTS=pxe-alpine</span><br><span class="line">DEVDOPTS=mdev</span><br><span class="line">INTERFACESOPTS=<span class="string">&quot;auto lo</span></span><br><span class="line"><span class="string">iface lo inet loopback</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">auto eth0</span></span><br><span class="line"><span class="string">iface eth0 inet dhcp</span></span><br><span class="line"><span class="string">&quot;</span></span><br><span class="line">DNSOPTS=none</span><br><span class="line">TIMEZONEOPTS=UTC</span><br><span class="line">PROXYOPTS=none</span><br><span class="line">APKREPOSOPTS=<span class="string">&quot;https://dl-cdn.alpinelinux.org/alpine/v3.24/main&quot;</span></span><br><span class="line">USEROPTS=none</span><br><span class="line">SSHDOPTS=none</span><br><span class="line">NTPOPTS=none</span><br><span class="line">DISKOPTS=<span class="string">&quot;-m sys -s 0 -k virt /dev/vda&quot;</span></span><br><span class="line">LBUOPTS=none</span><br><span class="line">APKCACHEOPTS=none</span><br></pre></td></tr></table></figure>
+
+<p>将文件保存为 nginx 可访问的 <code>/var/lib/ironic/httpboot/alpine/answers</code>，再从 Alpine 控制台执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ERASE_DISKS=/dev/vda \</span><br><span class="line">setup-alpine -e \</span><br><span class="line">  -f http://192.168.130.1:8080/alpine/answers</span><br></pre></td></tr></table></figure>
+
+<p>参数含义：</p>
+<ul>
+<li><code>-m sys</code>：将系统安装到磁盘</li>
+<li><code>-s 0</code>：不创建 swap</li>
+<li><code>-k virt</code>：安装虚拟机内核</li>
+<li><code>/dev/vda</code>：安装目标磁盘</li>
+<li><code>-e</code>：root 密码为空，仅适用于隔离实验</li>
+</ul>
+<blockquote>
+<p><code>ERASE_DISKS=/dev/vda</code> 会清空目标磁盘，务必确认它是新建的实验盘。</p>
+</blockquote>
+<h3 id="6-改为硬盘优先启动"><a href="#6-改为硬盘优先启动" class="headerlink" title="6. 改为硬盘优先启动"></a>6. 改为硬盘优先启动</h3><p>看到以下提示后，说明磁盘安装完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Installation is complete. Please reboot.</span><br></pre></td></tr></table></figure>
+
+<p>关闭虚拟机，将启动顺序改为：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;hd&#x27;</span>/&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;network&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>重新启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">virsh shutdown pxe-alpine</span><br><span class="line">virsh edit pxe-alpine</span><br><span class="line">virsh start pxe-alpine</span><br></pre></td></tr></table></figure>
+
+<p>如果控制台出现以下内容，说明已经从磁盘启动：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Welcome to Alpine Linux 3.24</span><br><span class="line">pxe-alpine login:</span><br></pre></td></tr></table></figure>
+
+<h2 id="使用-VirtualBMC-模拟裸金属-IPMI"><a href="#使用-VirtualBMC-模拟裸金属-IPMI" class="headerlink" title="使用 VirtualBMC 模拟裸金属 IPMI"></a>使用 VirtualBMC 模拟裸金属 IPMI</h2><p>PXE 链路验证完成后，可以在同一台宿主机上运行 VirtualBMC，把 <code>pxe-alpine</code> 暴露成一个支持 IPMI 的虚拟裸金属节点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ipmitool</span><br><span class="line">  ↓ IPMI / UDP 6230</span><br><span class="line">VirtualBMC</span><br><span class="line">  ↓ libvirt API</span><br><span class="line">pxe-alpine VM</span><br><span class="line">  ↓</span><br><span class="line">PXE 或虚拟磁盘</span><br></pre></td></tr></table></figure>
+
+<p>VirtualBMC 不提供 DHCP，也不传输启动文件。它只把 IPMI 电源和启动设备命令转换成 libvirt 操作。</p>
+<h3 id="1-安装并托管-VirtualBMC"><a href="#1-安装并托管-VirtualBMC" class="headerlink" title="1. 安装并托管 VirtualBMC"></a>1. 安装并托管 VirtualBMC</h3><p>为了不污染系统 Python，把 VirtualBMC 3.3.0 安装到独立 venv：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">python3 -m venv /opt/virtualbmc</span><br><span class="line">/opt/virtualbmc/bin/pip install virtualbmc</span><br></pre></td></tr></table></figure>
+
+<p>使用 systemd 托管 <code>vbmcd</code>：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[Unit]</span></span><br><span class="line"><span class="attr">Description</span>=VirtualBMC daemon</span><br><span class="line"><span class="attr">After</span>=network.target libvirtd.service</span><br><span class="line"><span class="attr">Requires</span>=libvirtd.service</span><br><span class="line"></span><br><span class="line"><span class="section">[Service]</span></span><br><span class="line"><span class="attr">Type</span>=simple</span><br><span class="line"><span class="attr">ExecStart</span>=/opt/virtualbmc/bin/vbmcd --foreground</span><br><span class="line"><span class="attr">Restart</span>=<span class="literal">on</span>-failure</span><br><span class="line"><span class="attr">RestartSec</span>=<span class="number">2</span></span><br><span class="line"></span><br><span class="line"><span class="section">[Install]</span></span><br><span class="line"><span class="attr">WantedBy</span>=multi-user.target</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-为虚拟机创建-BMC"><a href="#2-为虚拟机创建-BMC" class="headerlink" title="2. 为虚拟机创建 BMC"></a>2. 为虚拟机创建 BMC</h3><p>本实验只监听回环地址，避免把弱实验密码暴露到外部网络：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">/opt/virtualbmc/bin/vbmc add pxe-alpine \</span><br><span class="line">  --username admin \</span><br><span class="line">  --password <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> \</span><br><span class="line">  --address 127.0.0.1 \</span><br><span class="line">  --port 6230 \</span><br><span class="line">  --libvirt-uri qemu:///system</span><br><span class="line"></span><br><span class="line">/opt/virtualbmc/bin/vbmc start pxe-alpine</span><br><span class="line">/opt/virtualbmc/bin/vbmc list</span><br></pre></td></tr></table></figure>
+
+<p>实测监听状态：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">UNCONN 0 0 127.0.0.1:6230 0.0.0.0:* users:((&quot;vbmcd&quot;,...))</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-IPMI-电源控制实测"><a href="#3-IPMI-电源控制实测" class="headerlink" title="3. IPMI 电源控制实测"></a>3. IPMI 电源控制实测</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power status</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power soft</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power on</span><br></pre></td></tr></table></figure>
+
+<p>本次结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Chassis Power is on</span><br><span class="line">Chassis Power Control: Soft</span><br><span class="line">Chassis Power is off</span><br><span class="line">Chassis Power Control: Up/On</span><br><span class="line">Chassis Power is on</span><br></pre></td></tr></table></figure>
+
+<p>IPMI 与 <code>virsh domstate pxe-alpine</code> 的开关机状态一致。</p>
+<h3 id="4-IPMI-强制下一次从-PXE-启动"><a href="#4-IPMI-强制下一次从-PXE-启动" class="headerlink" title="4. IPMI 强制下一次从 PXE 启动"></a>4. IPMI 强制下一次从 PXE 启动</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">before=$(grep -c <span class="string">&#x27;GET /alpine/boot.ipxe&#x27;</span> /var/log/nginx/access.log)</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power off</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> chassis bootdev pxe</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power on</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> n <span class="keyword">in</span> $(<span class="built_in">seq</span> 1 40); <span class="keyword">do</span></span><br><span class="line">  after=$(grep -c <span class="string">&#x27;GET /alpine/boot.ipxe&#x27;</span> /var/log/nginx/access.log)</span><br><span class="line">  [ <span class="string">&quot;<span class="variable">$after</span>&quot;</span> -gt <span class="string">&quot;<span class="variable">$before</span>&quot;</span> ] &amp;&amp; <span class="built_in">break</span></span><br><span class="line">  <span class="built_in">sleep</span> 1</span><br><span class="line"><span class="keyword">done</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> $((after - before))</span><br></pre></td></tr></table></figure>
+
+<p>先完整关机，再设置 PXE 并开机，才能确保运行中的 VM 重新执行固件启动流程。本次 nginx 请求数增加 1，随后日志证明新一轮 PXE 下载完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">NEW_PXE_REQUESTS=1</span><br><span class="line">GET /alpine/boot.ipxe       200</span><br><span class="line">GET /alpine/vmlinuz-virt    200</span><br><span class="line">GET /alpine/initramfs-virt  200</span><br><span class="line">GET /alpine/modloop-virt    200</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-恢复磁盘启动时必须冷启动"><a href="#5-恢复磁盘启动时必须冷启动" class="headerlink" title="5. 恢复磁盘启动时必须冷启动"></a>5. 恢复磁盘启动时必须冷启动</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> chassis bootdev disk</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power off</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power on</span><br></pre></td></tr></table></figure>
+
+<p>这里不能只执行 <code>power reset</code>。VirtualBMC 3.3.0 通过 <code>defineXML()</code> 修改 libvirt 的持久化 XML；运行中的 QEMU 仍保留旧的 live XML。完整关机再开机后，QEMU 才会读取新的启动设备。</p>
+<p>实测最终状态：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Chassis Power is on</span><br><span class="line">Boot Device Selector : Force Boot from default Hard-Drive</span><br><span class="line">&lt;boot dev=&#x27;hd&#x27;/&gt;</span><br><span class="line">NEW_PXE_REQUESTS=0</span><br></pre></td></tr></table></figure>
+
+<h2 id="验收结果"><a href="#验收结果" class="headerlink" title="验收结果"></a>验收结果</h2><table>
+<thead>
+<tr>
+<th>检查项</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DHCP</td>
+<td>获取 <code>192.168.130.110</code></td>
+</tr>
+<tr>
+<td>iPXE 脚本与启动文件</td>
+<td>HTTP 下载成功</td>
+</tr>
+<tr>
+<td>Alpine 安装环境</td>
+<td>启动成功</td>
+</tr>
+<tr>
+<td>磁盘安装</td>
+<td><code>/dev/vda</code> 安装成功</td>
+</tr>
+<tr>
+<td>重启</td>
+<td>从硬盘进入 Alpine</td>
+</tr>
+<tr>
+<td>资源</td>
+<td>1 vCPU &#x2F; 512 MiB &#x2F; 2 GiB</td>
+</tr>
+<tr>
+<td>qcow2 实际占用</td>
+<td>约 90 MiB</td>
+</tr>
+<tr>
+<td>SSH、NTP、普通用户</td>
+<td>未安装</td>
+</tr>
+<tr>
+<td>VirtualBMC 服务</td>
+<td>systemd 运行并启用开机启动</td>
+</tr>
+<tr>
+<td>IPMI 电源状态、软关机、开机</td>
+<td>与 libvirt 状态一致</td>
+</tr>
+<tr>
+<td>IPMI <code>bootdev pxe</code></td>
+<td>冷启动后成功进入 PXE</td>
+</tr>
+<tr>
+<td>PXE 文件下载</td>
+<td>boot.ipxe、kernel、initramfs、modloop 均返回 200</td>
+</tr>
+<tr>
+<td>IPMI <code>bootdev disk</code></td>
+<td>冷启动后恢复磁盘，未产生新 PXE 请求</td>
+</tr>
+</tbody></table>
+<h2 id="排障速查"><a href="#排障速查" class="headerlink" title="排障速查"></a>排障速查</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>客户端拿不到 IP</td>
+<td>网桥、libvirt DHCP</td>
+</tr>
+<tr>
+<td>已拿到 IP，但 nginx 无请求</td>
+<td>DHCP 启动地址、iPXE HTTP 支持</td>
+</tr>
+<tr>
+<td>只请求了 <code>boot.ipxe</code></td>
+<td>脚本语法、内核 URL</td>
+</tr>
+<tr>
+<td>文件返回 200，但无内核日志</td>
+<td>内核、initramfs、启动参数</td>
+</tr>
+<tr>
+<td>Alpine 已启动，但磁盘为空</td>
+<td><code>setup-alpine</code> 尚未执行或失败</td>
+</tr>
+<tr>
+<td>IPMI 无响应</td>
+<td><code>vbmcd</code>、实例状态、UDP 监听地址和端口</td>
+</tr>
+<tr>
+<td><code>bootdev</code> 返回成功但查询仍是旧值</td>
+<td>对比 <code>virsh dumpxml</code> 与 <code>--inactive</code>，通过完整关机开机加载持久化 XML</td>
+</tr>
+<tr>
+<td>旧虚拟 BMC 持续报错</td>
+<td>对不存在的 domain 执行 <code>vbmc stop &lt;domain&gt;</code>，保留配置但停止实例</td>
+</tr>
+</tbody></table>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc2131">RFC 2131：DHCP</a></li>
+<li><a target="_blank" rel="noopener" href="https://ipxe.org/howto/chainloading">iPXE Chainloading</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.kernel.org/filesystems/ramfs-rootfs-initramfs.html">Linux Kernel：ramfs、rootfs 与 initramfs</a></li>
+<li><a target="_blank" rel="noopener" href="https://ipxe.org/cmd/sanboot">iPXE sanboot</a></li>
+<li><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows-hardware/test/hlk/testref/iscsi-boot-component-testing-prerequisites">Microsoft：iSCSI Boot Component Testing Prerequisites</a></li>
+<li><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows-server/storage/iscsi/iscsi-boot-overview">Microsoft：iSCSI Target Boot Overview</a></li>
+<li><a target="_blank" rel="noopener" href="https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/">Alpine Linux x86_64 Releases</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.openstack.org/virtualbmc/latest/">OpenStack VirtualBMC 文档</a></li>
+</ul>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#PXE-%E5%90%AF%E5%8A%A8%E5%8E%9F%E7%90%86"><span class="top-box-text">PXE 启动原理</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#DHCP%EF%BC%9A%E5%91%8A%E8%AF%89%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%8E%BB%E5%93%AA%E9%87%8C%E5%90%AF%E5%8A%A8"><span class="top-box-text">DHCP：告诉客户端去哪里启动</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#iPXE%EF%BC%9A%E4%B8%8B%E8%BD%BD%E5%B9%B6%E5%90%AF%E5%8A%A8-Linux"><span class="top-box-text">iPXE：下载并启动 Linux</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#setup-alpine%EF%BC%9A%E7%9C%9F%E6%AD%A3%E5%86%99%E5%85%A5%E7%A3%81%E7%9B%98"><span class="top-box-text">setup-alpine：真正写入磁盘</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%86%85%E6%A0%B8%E3%80%81initramfs-%E4%B8%8E%E6%97%A0%E7%9B%98%E7%B3%BB%E7%BB%9F"><span class="top-box-text">内核、initramfs 与无盘系统</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#Linux-%E5%AE%8C%E6%95%B4%E5%90%AF%E5%8A%A8%E9%93%BE%E8%B7%AF"><span class="top-box-text">Linux 完整启动链路</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%86%85%E6%A0%B8%E5%8A%A0-initramfs-%E5%B0%B1%E8%83%BD%E5%90%AF%E5%8A%A8-Linux"><span class="top-box-text">为什么内核加 initramfs 就能启动 Linux</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#initramfs-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E8%83%BD%E6%97%A0%E9%99%90%E5%A2%9E%E5%A4%A7"><span class="top-box-text">initramfs 为什么不能无限增大</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E7%BD%91%E5%90%A7%E6%97%A0%E7%9B%98-Windows-%E5%A6%82%E4%BD%95%E5%90%AF%E5%8A%A8"><span class="top-box-text">网吧无盘 Windows 如何启动</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%AE%9E%E9%AA%8C%E6%9E%B6%E6%9E%84"><span class="top-box-text">实验架构</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%93%8D%E4%BD%9C%E8%BF%87%E7%A8%8B"><span class="top-box-text">操作过程</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-%E5%88%9B%E5%BB%BA%E9%9A%94%E7%A6%BB-PXE-%E7%BD%91%E7%BB%9C"><span class="top-box-text">1. 创建隔离 PXE 网络</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-%E5%87%86%E5%A4%87-Alpine-%E5%90%AF%E5%8A%A8%E6%96%87%E4%BB%B6"><span class="top-box-text">2. 准备 Alpine 启动文件</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-%E7%BC%96%E5%86%99-iPXE-%E8%84%9A%E6%9C%AC"><span class="top-box-text">3. 编写 iPXE 脚本</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#4-%E5%88%9B%E5%BB%BA%E6%9C%80%E5%B0%8F%E8%99%9A%E6%8B%9F%E6%9C%BA"><span class="top-box-text">4. 创建最小虚拟机</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#5-%E5%B0%86-Alpine-%E5%AE%89%E8%A3%85%E5%88%B0%E7%A3%81%E7%9B%98"><span class="top-box-text">5. 将 Alpine 安装到磁盘</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#6-%E6%94%B9%E4%B8%BA%E7%A1%AC%E7%9B%98%E4%BC%98%E5%85%88%E5%90%AF%E5%8A%A8"><span class="top-box-text">6. 改为硬盘优先启动</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BD%BF%E7%94%A8-VirtualBMC-%E6%A8%A1%E6%8B%9F%E8%A3%B8%E9%87%91%E5%B1%9E-IPMI"><span class="top-box-text">使用 VirtualBMC 模拟裸金属 IPMI</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-%E5%AE%89%E8%A3%85%E5%B9%B6%E6%89%98%E7%AE%A1-VirtualBMC"><span class="top-box-text">1. 安装并托管 VirtualBMC</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-%E4%B8%BA%E8%99%9A%E6%8B%9F%E6%9C%BA%E5%88%9B%E5%BB%BA-BMC"><span class="top-box-text">2. 为虚拟机创建 BMC</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-IPMI-%E7%94%B5%E6%BA%90%E6%8E%A7%E5%88%B6%E5%AE%9E%E6%B5%8B"><span class="top-box-text">3. IPMI 电源控制实测</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#4-IPMI-%E5%BC%BA%E5%88%B6%E4%B8%8B%E4%B8%80%E6%AC%A1%E4%BB%8E-PXE-%E5%90%AF%E5%8A%A8"><span class="top-box-text">4. IPMI 强制下一次从 PXE 启动</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#5-%E6%81%A2%E5%A4%8D%E7%A3%81%E7%9B%98%E5%90%AF%E5%8A%A8%E6%97%B6%E5%BF%85%E9%A1%BB%E5%86%B7%E5%90%AF%E5%8A%A8"><span class="top-box-text">5. 恢复磁盘启动时必须冷启动</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%AA%8C%E6%94%B6%E7%BB%93%E6%9E%9C"><span class="top-box-text">验收结果</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%8E%92%E9%9A%9C%E9%80%9F%E6%9F%A5"><span class="top-box-text">排障速查</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="top-box-text">参考资料</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/08/14/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-iostat-%E5%88%86%E6%9E%90%E7%A3%81%E7%9B%98IO/">
+          <h3 class="post-title">
+            
+            下一篇：每天学习一个命令: iostat 分析磁盘 IO
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+

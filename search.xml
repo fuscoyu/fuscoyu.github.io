@@ -307,6 +307,684 @@
       </tags>
   </entry>
   <entry>
+    <title>使用 libvirt 和 Alpine 搭建最小 PXE 实验</title>
+    <url>/2026/08/18/%E4%BD%BF%E7%94%A8-libvirt-%E5%92%8C-Alpine-%E6%90%AD%E5%BB%BA%E6%9C%80%E5%B0%8F-PXE-%E5%AE%9E%E9%AA%8C/</url>
+    <content><![CDATA[<blockquote>
+<p>本文由 Codex 根据 PXE、Alpine 与 VirtualBMC 实测和讨论过程辅助整理生成。</p>
+</blockquote>
+<p>为了理解裸金属装机流程，我在一台 KVM 宿主机上搭建了最小 PXE 实验：客户端只有 <code>1 vCPU</code>、<code>512 MiB</code> 内存和 <code>2 GiB</code> 磁盘，通过网络启动 Alpine，再将系统安装到虚拟磁盘。</p>
+<p>最终 qcow2 文件实际占用约 <code>90 MiB</code>，适合资源有限的测试环境。</p>
+<span id="more"></span>
+
+<h2 id="PXE-启动原理"><a href="#PXE-启动原理" class="headerlink" title="PXE 启动原理"></a>PXE 启动原理</h2><p>PXE 不是操作系统安装器。它解决的是：<strong>一台没有可用系统的机器，如何通过网络获得并启动下一段程序。</strong></p>
+<p>完整链路如下：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">BIOS/UEFI</span><br><span class="line">  ↓ 选择网卡启动</span><br><span class="line">PXE/iPXE 固件</span><br><span class="line">  ↓ DHCP 获取 IP 和启动地址</span><br><span class="line">boot.ipxe</span><br><span class="line">  ↓ HTTP 下载</span><br><span class="line">Linux kernel + initramfs + modloop</span><br><span class="line">  ↓</span><br><span class="line">内存中的 Alpine 临时系统</span><br><span class="line">  ↓ setup-alpine</span><br><span class="line">安装到虚拟磁盘 /dev/vda</span><br><span class="line">  ↓ 重启</span><br><span class="line">从硬盘启动 Alpine</span><br></pre></td></tr></table></figure>
+
+<h3 id="DHCP：告诉客户端去哪里启动"><a href="#DHCP：告诉客户端去哪里启动" class="headerlink" title="DHCP：告诉客户端去哪里启动"></a>DHCP：告诉客户端去哪里启动</h3><p>PXE 客户端首先通过 DHCP 的 Discover、Offer、Request、ACK 获取网络配置。与普通 DHCP 不同的是，服务端还会返回启动文件地址：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">IP：192.168.130.110</span><br><span class="line">网关：192.168.130.1</span><br><span class="line">启动文件：http://192.168.130.1:8080/alpine/boot.ipxe</span><br></pre></td></tr></table></figure>
+
+<h3 id="iPXE：下载并启动-Linux"><a href="#iPXE：下载并启动-Linux" class="headerlink" title="iPXE：下载并启动 Linux"></a>iPXE：下载并启动 Linux</h3><p><code>boot.ipxe</code> 类似网络版 GRUB 配置。iPXE 读取脚本后，通过 HTTP 下载内核和 initramfs，再把 CPU 执行权交给 Linux 内核。</p>
+<p>传统 PXE 常用 TFTP；本实验的 QEMU 网卡固件已经支持 iPXE，因此直接使用 HTTP，省去了 TFTP。nginx 只负责提供静态文件，并不负责安装系统。</p>
+<h3 id="setup-alpine：真正写入磁盘"><a href="#setup-alpine：真正写入磁盘" class="headerlink" title="setup-alpine：真正写入磁盘"></a>setup-alpine：真正写入磁盘</h3><p>内核和 initramfs 启动后，Alpine 仍运行在内存中。此时 PXE 的任务已经完成，磁盘尚未安装系统。</p>
+<p>真正执行分区、格式化、安装软件包和引导程序的是：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">setup-alpine</span><br></pre></td></tr></table></figure>
+
+<p>一句话概括：<strong>PXE 把安装环境送进内存，安装器再把操作系统写入磁盘。</strong></p>
+<h2 id="内核、initramfs-与无盘系统"><a href="#内核、initramfs-与无盘系统" class="headerlink" title="内核、initramfs 与无盘系统"></a>内核、initramfs 与无盘系统</h2><p>以下内容用于解释启动原理，不属于本次 Alpine、VirtualBMC 实测范围。</p>
+<h3 id="Linux-完整启动链路"><a href="#Linux-完整启动链路" class="headerlink" title="Linux 完整启动链路"></a>Linux 完整启动链路</h3><p>无论从本地磁盘还是 PXE 启动，Linux 获得 CPU 控制权后的过程基本相同：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">上电</span><br><span class="line">  ↓</span><br><span class="line">BIOS/UEFI：硬件自检并选择启动设备</span><br><span class="line">  ↓</span><br><span class="line">启动入口</span><br><span class="line">  ├─ 磁盘：GRUB 等引导程序</span><br><span class="line">  └─ 网络：固件 PXE 客户端 → NBP/iPXE</span><br><span class="line">  ↓</span><br><span class="line">引导阶段</span><br><span class="line">  ├─ 将 Linux kernel 放入内存</span><br><span class="line">  ├─ 将 initramfs 放入内存</span><br><span class="line">  └─ 传递 kernel command line</span><br><span class="line">  ↓</span><br><span class="line">Linux 内核</span><br><span class="line">  ├─ 自解压</span><br><span class="line">  ├─ 初始化 CPU、内存、中断和调度器</span><br><span class="line">  ├─ 初始化内置驱动</span><br><span class="line">  └─ 解压 initramfs，挂载为临时根目录 /</span><br><span class="line">  ↓</span><br><span class="line">initramfs 中的 /init（早期 PID 1）</span><br><span class="line">  ├─ 挂载 /proc、/sys、/dev</span><br><span class="line">  ├─ 加载磁盘、网卡等内核模块</span><br><span class="line">  ├─ 识别 RAID、LVM、加密卷或网络根设备</span><br><span class="line">  └─ 挂载真正的根文件系统</span><br><span class="line">  ↓ switch_root</span><br><span class="line">真正根文件系统中的 /sbin/init</span><br><span class="line">  ↓</span><br><span class="line">systemd、OpenRC 等初始化系统</span><br><span class="line">  ├─ 挂载其他文件系统</span><br><span class="line">  ├─ 配置网络</span><br><span class="line">  ├─ 启动系统服务</span><br><span class="line">  └─ 提供控制台或登录界面</span><br></pre></td></tr></table></figure>
+
+<p>传统磁盘启动与 PXE 启动的主要区别只在前半段：</p>
+<table>
+<thead>
+<tr>
+<th>启动方式</th>
+<th>内核和 initramfs 的来源</th>
+<th>真正的根文件系统可能位于</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>磁盘启动</td>
+<td>GRUB 从本地磁盘读取</td>
+<td>本地磁盘</td>
+</tr>
+<tr>
+<td>PXE 启动</td>
+<td>固件 PXE 客户端加载 iPXE，再由 iPXE 从网络下载</td>
+<td>内存、本地磁盘或网络存储</td>
+</tr>
+</tbody></table>
+<p>如果 initramfs 已经包含完整用户空间，它可以继续作为最终根文件系统，不一定执行 <code>switch_root</code>。这正是部分 Live、救援和纯内存系统的工作方式。</p>
+<h3 id="为什么内核加-initramfs-就能启动-Linux"><a href="#为什么内核加-initramfs-就能启动-Linux" class="headerlink" title="为什么内核加 initramfs 就能启动 Linux"></a>为什么内核加 initramfs 就能启动 Linux</h3><p>本实验由 iPXE 启动 Alpine 时，至少需要向客户端提供两部分：</p>
+<ul>
+<li>内核：初始化 CPU、内存、中断和设备，管理进程与硬件资源</li>
+<li>initramfs：提供早期用户空间，包括 <code>/init</code>、BusyBox、驱动加载和网络脚本</li>
+</ul>
+<p>启动过程是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">iPXE 将 kernel 和 initramfs 放入内存</span><br><span class="line">  ↓</span><br><span class="line">跳转执行 Linux 内核</span><br><span class="line">  ↓</span><br><span class="line">内核解压 initramfs，并将其作为临时根目录 /</span><br><span class="line">  ↓</span><br><span class="line">执行 /init，成为 PID 1</span><br><span class="line">  ↓</span><br><span class="line">加载驱动、配置网络、寻找真正的根文件系统</span><br><span class="line">  ↓</span><br><span class="line">继续运行内存系统，或通过 switch_root 切换到磁盘/网络根文件系统</span><br></pre></td></tr></table></figure>
+
+<p>内核只有管理硬件和执行程序的能力；initramfs 只有文件和启动工具。两者结合，才构成一个可以运行的最小 Linux。它可以只是安装环境，也可以是完全运行在内存里的系统，但不代表操作系统已经安装到磁盘。</p>
+<p>initramfs 并非所有 Linux 启动方式都必需。如果根文件系统位于内核可直接访问的设备上，且所需的文件系统与存储驱动已编译进内核，内核也可以根据 <code>root=</code> 参数直接挂载磁盘根文件系统并执行其中的 <code>/sbin/init</code>。本实验需要 initramfs，是因为它要先提供网络启动所需的早期用户空间。</p>
+<h3 id="initramfs-为什么不能无限增大"><a href="#initramfs-为什么不能无限增大" class="headerlink" title="initramfs 为什么不能无限增大"></a>initramfs 为什么不能无限增大</h3><p>initramfs 没有统一的固定大小上限，实际边界取决于客户端内存和固件、引导器的内存布局。启动时内存中可能同时存在：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">压缩的 initramfs</span><br><span class="line">+ 解压后的内存根文件系统</span><br><span class="line">+ Linux 内核及其数据结构</span><br><span class="line">+ 驱动、网络缓冲区和用户进程</span><br><span class="line">= 启动内存峰值</span><br></pre></td></tr></table></figure>
+
+<p>因此不能只看 initramfs 压缩文件的大小。文件过大时，可能在 iPXE 分配内存、内核解压或用户空间启动阶段失败。</p>
+<p>本实验将内容拆分为 <code>vmlinuz-virt</code>、<code>initramfs-virt</code>、<code>modloop-virt</code> 和 HTTP APK 仓库，目的之一就是让 initramfs 只保留早期启动必需内容，额外模块与软件包在网络可用后再按需获取。</p>
+<h3 id="网吧无盘-Windows-如何启动"><a href="#网吧无盘-Windows-如何启动" class="headerlink" title="网吧无盘 Windows 如何启动"></a>网吧无盘 Windows 如何启动</h3><p>无盘系统通常不会把完整 Windows 和所有游戏一次性复制到内存，而是把服务器上的远程块设备伪装成本地系统盘：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">客户机的 C:</span><br><span class="line">= 服务器上的公共只读系统镜像</span><br><span class="line">+ 当前客户机的独立写入层</span><br></pre></td></tr></table></figure>
+
+<p>公共镜像便于统一更新，写时复制层避免多台客户机相互覆盖；服务器 NVMe、内存和客户端内存则缓存热点数据。</p>
+<p>Windows 无盘启动主要有两种链路。</p>
+<p>第一种由 iPXE 直接连接 iSCSI：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">BIOS/UEFI → PXE/iPXE → 挂载 iSCSI LUN</span><br><span class="line">→ 读取远程盘上的 Windows Boot Manager</span><br><span class="line">→ Windows 内核和启动级网卡/iSCSI 驱动接管连接</span><br><span class="line">→ 从远程 C: 继续启动</span><br></pre></td></tr></table></figure>
+
+<p>iPXE 脚本示意如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">#!ipxe</span><br><span class="line">dhcp</span><br><span class="line">sanboot iscsi:192.168.130.1::::iqn.2026-08.local:windows</span><br></pre></td></tr></table></figure>
+
+<p>iPXE 会通过 iBFT 等机制向操作系统描述 iSCSI 启动盘。因此，这条链路不要求先启动 WinPE；远程盘在 Windows Boot Manager 运行前就已经连接。</p>
+<p>第二种先启动 WinPE 或厂商的精简引导环境：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">BIOS/UEFI → PXE → WinPE/厂商引导环境</span><br><span class="line">→ 加载网卡和网络磁盘驱动</span><br><span class="line">→ 连接远程系统盘</span><br><span class="line">→ 链式启动正式 Windows</span><br></pre></td></tr></table></figure>
+
+<p>这种模式下，WinPE 的作用与 Linux initramfs 相似：先提供最小用户空间，获得网络存储能力，再找到真正的系统盘。无论采用哪种方式，关键都不是“必须启动 WinPE”，而是 <strong>Windows 第一次需要读取系统盘之前，远程磁盘必须已经可用；Windows 接管后，启动级驱动必须能继续维持连接。</strong></p>
+<h2 id="实验架构"><a href="#实验架构" class="headerlink" title="实验架构"></a>实验架构</h2><figure class="highlight text"><table><tr><td class="code"><pre><span class="line">KVM 宿主机</span><br><span class="line">├── libvirt dnsmasq：DHCP 与启动地址</span><br><span class="line">├── nginx :8080：iPXE、内核、initramfs、modloop、APK</span><br><span class="line">└── pxe-alpine VM</span><br><span class="line">    ├── 1 vCPU</span><br><span class="line">    ├── 512 MiB RAM</span><br><span class="line">    ├── 2 GiB qcow2</span><br><span class="line">    └── 192.168.130.110</span><br></pre></td></tr></table></figure>
+
+<p>为避免影响现有网络，DHCP 仅绑定到独立的 <code>virbr-pxe</code> 网桥。</p>
+<h2 id="操作过程"><a href="#操作过程" class="headerlink" title="操作过程"></a>操作过程</h2><h3 id="1-创建隔离-PXE-网络"><a href="#1-创建隔离-PXE-网络" class="headerlink" title="1. 创建隔离 PXE 网络"></a>1. 创建隔离 PXE 网络</h3><p>创建 <code>pxe-lab.xml</code>：</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">network</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">name</span>&gt;</span>pxe-lab<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">forward</span> <span class="attr">mode</span>=<span class="string">&#x27;nat&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">bridge</span> <span class="attr">name</span>=<span class="string">&#x27;virbr-pxe&#x27;</span> <span class="attr">stp</span>=<span class="string">&#x27;on&#x27;</span> <span class="attr">delay</span>=<span class="string">&#x27;0&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">ip</span> <span class="attr">address</span>=<span class="string">&#x27;192.168.130.1&#x27;</span> <span class="attr">netmask</span>=<span class="string">&#x27;255.255.255.0&#x27;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">dhcp</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">range</span> <span class="attr">start</span>=<span class="string">&#x27;192.168.130.100&#x27;</span> <span class="attr">end</span>=<span class="string">&#x27;192.168.130.200&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">host</span> <span class="attr">mac</span>=<span class="string">&#x27;52:54:00:13:00:10&#x27;</span></span></span><br><span class="line"><span class="tag">            <span class="attr">name</span>=<span class="string">&#x27;pxe-alpine&#x27;</span></span></span><br><span class="line"><span class="tag">            <span class="attr">ip</span>=<span class="string">&#x27;192.168.130.110&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">bootp</span> <span class="attr">file</span>=<span class="string">&#x27;http://192.168.130.1:8080/alpine/boot.ipxe&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">dhcp</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">ip</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">network</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>启用网络：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">virsh net-define pxe-lab.xml</span><br><span class="line">virsh net-autostart pxe-lab</span><br><span class="line">virsh net-start pxe-lab</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-准备-Alpine-启动文件"><a href="#2-准备-Alpine-启动文件" class="headerlink" title="2. 准备 Alpine 启动文件"></a>2. 准备 Alpine 启动文件</h3><p>nginx 在 <code>8080</code> 端口暴露 <code>/var/lib/ironic/httpboot</code>。创建目录并下载 Alpine <code>virt</code> netboot 文件：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p /var/lib/ironic/httpboot/alpine</span><br><span class="line"><span class="built_in">cd</span> /var/lib/ironic/httpboot/alpine</span><br><span class="line"></span><br><span class="line">base=https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/netboot-3.24.1</span><br><span class="line">curl -fLO <span class="string">&quot;<span class="variable">$base</span>/vmlinuz-virt&quot;</span></span><br><span class="line">curl -fLO <span class="string">&quot;<span class="variable">$base</span>/initramfs-virt&quot;</span></span><br><span class="line">curl -fLO <span class="string">&quot;<span class="variable">$base</span>/modloop-virt&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>三份文件合计约 <code>43 MiB</code>：</p>
+<ul>
+<li><code>vmlinuz-virt</code>：Linux 内核</li>
+<li><code>initramfs-virt</code>：启动早期的内存根文件系统</li>
+<li><code>modloop-virt</code>：Alpine 内核模块</li>
+</ul>
+<h3 id="3-编写-iPXE-脚本"><a href="#3-编写-iPXE-脚本" class="headerlink" title="3. 编写 iPXE 脚本"></a>3. 编写 iPXE 脚本</h3><p>创建 <code>/var/lib/ironic/httpboot/alpine/boot.ipxe</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">#!ipxe</span><br><span class="line">dhcp</span><br><span class="line"></span><br><span class="line">set base-url http://192.168.130.1:8080/alpine</span><br><span class="line"></span><br><span class="line">kernel $&#123;base-url&#125;/vmlinuz-virt \</span><br><span class="line">  console=tty0 console=ttyS0,115200 \</span><br><span class="line">  modules=loop,squashfs,sd-mod,virtio_pci,virtio_blk,virtio_net \</span><br><span class="line">  alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.24/main \</span><br><span class="line">  modloop=$&#123;base-url&#125;/modloop-virt</span><br><span class="line"></span><br><span class="line">initrd $&#123;base-url&#125;/initramfs-virt</span><br><span class="line">boot</span><br></pre></td></tr></table></figure>
+
+<p>先确认 HTTP 文件可访问：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl http://192.168.130.1:8080/alpine/boot.ipxe</span><br><span class="line">curl -I http://192.168.130.1:8080/alpine/vmlinuz-virt</span><br></pre></td></tr></table></figure>
+
+<p>本次实验中公网仓库较慢，因此后来把安装需要的约 48 个基础包缓存到 nginx，并将 <code>alpine_repo</code> 改为：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">http://192.168.130.1:8080/alpine/main</span><br></pre></td></tr></table></figure>
+
+<p>使用本地仓库时，应答文件中的 <code>APKREPOSOPTS</code> 也要改成同一地址。</p>
+<p>不要直接把 Alpine <code>virt</code> ISO 当作完整安装仓库，它可能缺少 <code>linux-virt</code>、<code>syslinux</code> 等磁盘安装包。</p>
+<h3 id="4-创建最小虚拟机"><a href="#4-创建最小虚拟机" class="headerlink" title="4. 创建最小虚拟机"></a>4. 创建最小虚拟机</h3><p>先创建稀疏磁盘：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">qemu-img create -f qcow2 \</span><br><span class="line">  /var/lib/libvirt/images/pxe-alpine.qcow2 2G</span><br></pre></td></tr></table></figure>
+
+<p>虚拟机关键配置如下：</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">domain</span> <span class="attr">type</span>=<span class="string">&#x27;kvm&#x27;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">name</span>&gt;</span>pxe-alpine<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">memory</span> <span class="attr">unit</span>=<span class="string">&#x27;MiB&#x27;</span>&gt;</span>512<span class="tag">&lt;/<span class="name">memory</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">vcpu</span>&gt;</span>1<span class="tag">&lt;/<span class="name">vcpu</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">os</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">type</span> <span class="attr">arch</span>=<span class="string">&#x27;x86_64&#x27;</span> <span class="attr">machine</span>=<span class="string">&#x27;pc&#x27;</span>&gt;</span>hvm<span class="tag">&lt;/<span class="name">type</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;network&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;hd&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">os</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">devices</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">disk</span> <span class="attr">type</span>=<span class="string">&#x27;file&#x27;</span> <span class="attr">device</span>=<span class="string">&#x27;disk&#x27;</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">driver</span> <span class="attr">name</span>=<span class="string">&#x27;qemu&#x27;</span> <span class="attr">type</span>=<span class="string">&#x27;qcow2&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">source</span> <span class="attr">file</span>=<span class="string">&#x27;/var/lib/libvirt/images/pxe-alpine.qcow2&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">target</span> <span class="attr">dev</span>=<span class="string">&#x27;vda&#x27;</span> <span class="attr">bus</span>=<span class="string">&#x27;virtio&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">disk</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">interface</span> <span class="attr">type</span>=<span class="string">&#x27;network&#x27;</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">mac</span> <span class="attr">address</span>=<span class="string">&#x27;52:54:00:13:00:10&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">source</span> <span class="attr">network</span>=<span class="string">&#x27;pxe-lab&#x27;</span>/&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">model</span> <span class="attr">type</span>=<span class="string">&#x27;virtio&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">interface</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">serial</span> <span class="attr">type</span>=<span class="string">&#x27;pty&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">console</span> <span class="attr">type</span>=<span class="string">&#x27;pty&#x27;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">graphics</span> <span class="attr">type</span>=<span class="string">&#x27;vnc&#x27;</span> <span class="attr">port</span>=<span class="string">&#x27;-1&#x27;</span> <span class="attr">autoport</span>=<span class="string">&#x27;yes&#x27;</span> <span class="attr">listen</span>=<span class="string">&#x27;127.0.0.1&#x27;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">devices</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">domain</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>保存为 <code>pxe-alpine.xml</code>，然后启动：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">virsh define pxe-alpine.xml</span><br><span class="line">virsh start pxe-alpine</span><br><span class="line">virsh console pxe-alpine</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-将-Alpine-安装到磁盘"><a href="#5-将-Alpine-安装到磁盘" class="headerlink" title="5. 将 Alpine 安装到磁盘"></a>5. 将 Alpine 安装到磁盘</h3><p>进入内存中的 Alpine 后，可执行 <code>setup-alpine</code> 交互式安装。为了减少重复输入，本实验使用应答文件：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">KEYMAPOPTS=none</span><br><span class="line">HOSTNAMEOPTS=pxe-alpine</span><br><span class="line">DEVDOPTS=mdev</span><br><span class="line">INTERFACESOPTS=<span class="string">&quot;auto lo</span></span><br><span class="line"><span class="string">iface lo inet loopback</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">auto eth0</span></span><br><span class="line"><span class="string">iface eth0 inet dhcp</span></span><br><span class="line"><span class="string">&quot;</span></span><br><span class="line">DNSOPTS=none</span><br><span class="line">TIMEZONEOPTS=UTC</span><br><span class="line">PROXYOPTS=none</span><br><span class="line">APKREPOSOPTS=<span class="string">&quot;https://dl-cdn.alpinelinux.org/alpine/v3.24/main&quot;</span></span><br><span class="line">USEROPTS=none</span><br><span class="line">SSHDOPTS=none</span><br><span class="line">NTPOPTS=none</span><br><span class="line">DISKOPTS=<span class="string">&quot;-m sys -s 0 -k virt /dev/vda&quot;</span></span><br><span class="line">LBUOPTS=none</span><br><span class="line">APKCACHEOPTS=none</span><br></pre></td></tr></table></figure>
+
+<p>将文件保存为 nginx 可访问的 <code>/var/lib/ironic/httpboot/alpine/answers</code>，再从 Alpine 控制台执行：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">ERASE_DISKS=/dev/vda \</span><br><span class="line">setup-alpine -e \</span><br><span class="line">  -f http://192.168.130.1:8080/alpine/answers</span><br></pre></td></tr></table></figure>
+
+<p>参数含义：</p>
+<ul>
+<li><code>-m sys</code>：将系统安装到磁盘</li>
+<li><code>-s 0</code>：不创建 swap</li>
+<li><code>-k virt</code>：安装虚拟机内核</li>
+<li><code>/dev/vda</code>：安装目标磁盘</li>
+<li><code>-e</code>：root 密码为空，仅适用于隔离实验</li>
+</ul>
+<blockquote>
+<p><code>ERASE_DISKS=/dev/vda</code> 会清空目标磁盘，务必确认它是新建的实验盘。</p>
+</blockquote>
+<h3 id="6-改为硬盘优先启动"><a href="#6-改为硬盘优先启动" class="headerlink" title="6. 改为硬盘优先启动"></a>6. 改为硬盘优先启动</h3><p>看到以下提示后，说明磁盘安装完成：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Installation is complete. Please reboot.</span><br></pre></td></tr></table></figure>
+
+<p>关闭虚拟机，将启动顺序改为：</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;hd&#x27;</span>/&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">boot</span> <span class="attr">dev</span>=<span class="string">&#x27;network&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>重新启动：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">virsh shutdown pxe-alpine</span><br><span class="line">virsh edit pxe-alpine</span><br><span class="line">virsh start pxe-alpine</span><br></pre></td></tr></table></figure>
+
+<p>如果控制台出现以下内容，说明已经从磁盘启动：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Welcome to Alpine Linux 3.24</span><br><span class="line">pxe-alpine login:</span><br></pre></td></tr></table></figure>
+
+<h2 id="使用-VirtualBMC-模拟裸金属-IPMI"><a href="#使用-VirtualBMC-模拟裸金属-IPMI" class="headerlink" title="使用 VirtualBMC 模拟裸金属 IPMI"></a>使用 VirtualBMC 模拟裸金属 IPMI</h2><p>PXE 链路验证完成后，可以在同一台宿主机上运行 VirtualBMC，把 <code>pxe-alpine</code> 暴露成一个支持 IPMI 的虚拟裸金属节点：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">ipmitool</span><br><span class="line">  ↓ IPMI / UDP 6230</span><br><span class="line">VirtualBMC</span><br><span class="line">  ↓ libvirt API</span><br><span class="line">pxe-alpine VM</span><br><span class="line">  ↓</span><br><span class="line">PXE 或虚拟磁盘</span><br></pre></td></tr></table></figure>
+
+<p>VirtualBMC 不提供 DHCP，也不传输启动文件。它只把 IPMI 电源和启动设备命令转换成 libvirt 操作。</p>
+<h3 id="1-安装并托管-VirtualBMC"><a href="#1-安装并托管-VirtualBMC" class="headerlink" title="1. 安装并托管 VirtualBMC"></a>1. 安装并托管 VirtualBMC</h3><p>为了不污染系统 Python，把 VirtualBMC 3.3.0 安装到独立 venv：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">python3 -m venv /opt/virtualbmc</span><br><span class="line">/opt/virtualbmc/bin/pip install virtualbmc</span><br></pre></td></tr></table></figure>
+
+<p>使用 systemd 托管 <code>vbmcd</code>：</p>
+<figure class="highlight ini"><table><tr><td class="code"><pre><span class="line"><span class="section">[Unit]</span></span><br><span class="line"><span class="attr">Description</span>=VirtualBMC daemon</span><br><span class="line"><span class="attr">After</span>=network.target libvirtd.service</span><br><span class="line"><span class="attr">Requires</span>=libvirtd.service</span><br><span class="line"></span><br><span class="line"><span class="section">[Service]</span></span><br><span class="line"><span class="attr">Type</span>=simple</span><br><span class="line"><span class="attr">ExecStart</span>=/opt/virtualbmc/bin/vbmcd --foreground</span><br><span class="line"><span class="attr">Restart</span>=<span class="literal">on</span>-failure</span><br><span class="line"><span class="attr">RestartSec</span>=<span class="number">2</span></span><br><span class="line"></span><br><span class="line"><span class="section">[Install]</span></span><br><span class="line"><span class="attr">WantedBy</span>=multi-user.target</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-为虚拟机创建-BMC"><a href="#2-为虚拟机创建-BMC" class="headerlink" title="2. 为虚拟机创建 BMC"></a>2. 为虚拟机创建 BMC</h3><p>本实验只监听回环地址，避免把弱实验密码暴露到外部网络：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">/opt/virtualbmc/bin/vbmc add pxe-alpine \</span><br><span class="line">  --username admin \</span><br><span class="line">  --password <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> \</span><br><span class="line">  --address 127.0.0.1 \</span><br><span class="line">  --port 6230 \</span><br><span class="line">  --libvirt-uri qemu:///system</span><br><span class="line"></span><br><span class="line">/opt/virtualbmc/bin/vbmc start pxe-alpine</span><br><span class="line">/opt/virtualbmc/bin/vbmc list</span><br></pre></td></tr></table></figure>
+
+<p>实测监听状态：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">UNCONN 0 0 127.0.0.1:6230 0.0.0.0:* users:((&quot;vbmcd&quot;,...))</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-IPMI-电源控制实测"><a href="#3-IPMI-电源控制实测" class="headerlink" title="3. IPMI 电源控制实测"></a>3. IPMI 电源控制实测</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power status</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power soft</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power on</span><br></pre></td></tr></table></figure>
+
+<p>本次结果：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Chassis Power is on</span><br><span class="line">Chassis Power Control: Soft</span><br><span class="line">Chassis Power is off</span><br><span class="line">Chassis Power Control: Up/On</span><br><span class="line">Chassis Power is on</span><br></pre></td></tr></table></figure>
+
+<p>IPMI 与 <code>virsh domstate pxe-alpine</code> 的开关机状态一致。</p>
+<h3 id="4-IPMI-强制下一次从-PXE-启动"><a href="#4-IPMI-强制下一次从-PXE-启动" class="headerlink" title="4. IPMI 强制下一次从 PXE 启动"></a>4. IPMI 强制下一次从 PXE 启动</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">before=$(grep -c <span class="string">&#x27;GET /alpine/boot.ipxe&#x27;</span> /var/log/nginx/access.log)</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power off</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> chassis bootdev pxe</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power on</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> n <span class="keyword">in</span> $(<span class="built_in">seq</span> 1 40); <span class="keyword">do</span></span><br><span class="line">  after=$(grep -c <span class="string">&#x27;GET /alpine/boot.ipxe&#x27;</span> /var/log/nginx/access.log)</span><br><span class="line">  [ <span class="string">&quot;<span class="variable">$after</span>&quot;</span> -gt <span class="string">&quot;<span class="variable">$before</span>&quot;</span> ] &amp;&amp; <span class="built_in">break</span></span><br><span class="line">  <span class="built_in">sleep</span> 1</span><br><span class="line"><span class="keyword">done</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> $((after - before))</span><br></pre></td></tr></table></figure>
+
+<p>先完整关机，再设置 PXE 并开机，才能确保运行中的 VM 重新执行固件启动流程。本次 nginx 请求数增加 1，随后日志证明新一轮 PXE 下载完成：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">NEW_PXE_REQUESTS=1</span><br><span class="line">GET /alpine/boot.ipxe       200</span><br><span class="line">GET /alpine/vmlinuz-virt    200</span><br><span class="line">GET /alpine/initramfs-virt  200</span><br><span class="line">GET /alpine/modloop-virt    200</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-恢复磁盘启动时必须冷启动"><a href="#5-恢复磁盘启动时必须冷启动" class="headerlink" title="5. 恢复磁盘启动时必须冷启动"></a>5. 恢复磁盘启动时必须冷启动</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> chassis bootdev disk</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power off</span><br><span class="line"></span><br><span class="line">ipmitool -I lanplus -H 127.0.0.1 -p 6230 \</span><br><span class="line">  -U admin -P <span class="string">&#x27;&lt;实验密码&gt;&#x27;</span> power on</span><br></pre></td></tr></table></figure>
+
+<p>这里不能只执行 <code>power reset</code>。VirtualBMC 3.3.0 通过 <code>defineXML()</code> 修改 libvirt 的持久化 XML；运行中的 QEMU 仍保留旧的 live XML。完整关机再开机后，QEMU 才会读取新的启动设备。</p>
+<p>实测最终状态：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Chassis Power is on</span><br><span class="line">Boot Device Selector : Force Boot from default Hard-Drive</span><br><span class="line">&lt;boot dev=&#x27;hd&#x27;/&gt;</span><br><span class="line">NEW_PXE_REQUESTS=0</span><br></pre></td></tr></table></figure>
+
+<h2 id="验收结果"><a href="#验收结果" class="headerlink" title="验收结果"></a>验收结果</h2><table>
+<thead>
+<tr>
+<th>检查项</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DHCP</td>
+<td>获取 <code>192.168.130.110</code></td>
+</tr>
+<tr>
+<td>iPXE 脚本与启动文件</td>
+<td>HTTP 下载成功</td>
+</tr>
+<tr>
+<td>Alpine 安装环境</td>
+<td>启动成功</td>
+</tr>
+<tr>
+<td>磁盘安装</td>
+<td><code>/dev/vda</code> 安装成功</td>
+</tr>
+<tr>
+<td>重启</td>
+<td>从硬盘进入 Alpine</td>
+</tr>
+<tr>
+<td>资源</td>
+<td>1 vCPU &#x2F; 512 MiB &#x2F; 2 GiB</td>
+</tr>
+<tr>
+<td>qcow2 实际占用</td>
+<td>约 90 MiB</td>
+</tr>
+<tr>
+<td>SSH、NTP、普通用户</td>
+<td>未安装</td>
+</tr>
+<tr>
+<td>VirtualBMC 服务</td>
+<td>systemd 运行并启用开机启动</td>
+</tr>
+<tr>
+<td>IPMI 电源状态、软关机、开机</td>
+<td>与 libvirt 状态一致</td>
+</tr>
+<tr>
+<td>IPMI <code>bootdev pxe</code></td>
+<td>冷启动后成功进入 PXE</td>
+</tr>
+<tr>
+<td>PXE 文件下载</td>
+<td>boot.ipxe、kernel、initramfs、modloop 均返回 200</td>
+</tr>
+<tr>
+<td>IPMI <code>bootdev disk</code></td>
+<td>冷启动后恢复磁盘，未产生新 PXE 请求</td>
+</tr>
+</tbody></table>
+<h2 id="排障速查"><a href="#排障速查" class="headerlink" title="排障速查"></a>排障速查</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>客户端拿不到 IP</td>
+<td>网桥、libvirt DHCP</td>
+</tr>
+<tr>
+<td>已拿到 IP，但 nginx 无请求</td>
+<td>DHCP 启动地址、iPXE HTTP 支持</td>
+</tr>
+<tr>
+<td>只请求了 <code>boot.ipxe</code></td>
+<td>脚本语法、内核 URL</td>
+</tr>
+<tr>
+<td>文件返回 200，但无内核日志</td>
+<td>内核、initramfs、启动参数</td>
+</tr>
+<tr>
+<td>Alpine 已启动，但磁盘为空</td>
+<td><code>setup-alpine</code> 尚未执行或失败</td>
+</tr>
+<tr>
+<td>IPMI 无响应</td>
+<td><code>vbmcd</code>、实例状态、UDP 监听地址和端口</td>
+</tr>
+<tr>
+<td><code>bootdev</code> 返回成功但查询仍是旧值</td>
+<td>对比 <code>virsh dumpxml</code> 与 <code>--inactive</code>，通过完整关机开机加载持久化 XML</td>
+</tr>
+<tr>
+<td>旧虚拟 BMC 持续报错</td>
+<td>对不存在的 domain 执行 <code>vbmc stop &lt;domain&gt;</code>，保留配置但停止实例</td>
+</tr>
+</tbody></table>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a href="https://www.rfc-editor.org/rfc/rfc2131">RFC 2131：DHCP</a></li>
+<li><a href="https://ipxe.org/howto/chainloading">iPXE Chainloading</a></li>
+<li><a href="https://docs.kernel.org/filesystems/ramfs-rootfs-initramfs.html">Linux Kernel：ramfs、rootfs 与 initramfs</a></li>
+<li><a href="https://ipxe.org/cmd/sanboot">iPXE sanboot</a></li>
+<li><a href="https://learn.microsoft.com/en-us/windows-hardware/test/hlk/testref/iscsi-boot-component-testing-prerequisites">Microsoft：iSCSI Boot Component Testing Prerequisites</a></li>
+<li><a href="https://learn.microsoft.com/en-us/windows-server/storage/iscsi/iscsi-boot-overview">Microsoft：iSCSI Target Boot Overview</a></li>
+<li><a href="https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/">Alpine Linux x86_64 Releases</a></li>
+<li><a href="https://docs.openstack.org/virtualbmc/latest/">OpenStack VirtualBMC 文档</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>PXE</tag>
+        <tag>iPXE</tag>
+        <tag>Alpine Linux</tag>
+        <tag>libvirt</tag>
+        <tag>VirtualBMC</tag>
+        <tag>IPMI</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>每天学习一个命令: iostat 分析磁盘 IO</title>
+    <url>/2026/08/14/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-iostat-%E5%88%86%E6%9E%90%E7%A3%81%E7%9B%98IO/</url>
+    <content><![CDATA[<p><code>iostat</code> 是 <code>sysstat</code> 工具包中的磁盘 I&#x2F;O 观测命令。它能回答三类常见问题：磁盘当前有多少 IOPS、读写带宽和延迟是多少，以及压力集中在哪块块设备上。</p>
+<p>本文重点记录实时采样、添加时间戳、筛选 NVMe 设备、保存和查询日志，以及如何避免把 <code>%util=100%</code> 直接等同于“磁盘已经跑满”。</p>
+<span id="more"></span>
+
+<h2 id="安装与快速开始"><a href="#安装与快速开始" class="headerlink" title="安装与快速开始"></a>安装与快速开始</h2><p>Debian、Ubuntu：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install sysstat</span><br></pre></td></tr></table></figure>
+
+<p>RHEL、CentOS、Rocky Linux：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo dnf install sysstat</span><br></pre></td></tr></table></figure>
+
+<p>最常用的实时观测命令是：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iostat -x 1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>-x</code>：显示扩展设备指标；</li>
+<li><code>1</code>：每 1 秒输出一次，直到按 <code>Ctrl+C</code> 停止。</li>
+</ul>
+<p>若只采样 5 次：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iostat -x 1 5</span><br></pre></td></tr></table></figure>
+
+<h2 id="一条适合排障的命令"><a href="#一条适合排障的命令" class="headerlink" title="一条适合排障的命令"></a>一条适合排障的命令</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">S_TIME_FORMAT=ISO iostat -d -x -t -y -z nvme0n1 nvme1n1 1</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>-d</code></td>
+<td>只显示设备报告，不显示 CPU 报告</td>
+</tr>
+<tr>
+<td><code>-x</code></td>
+<td>显示 IOPS、带宽、延迟、队列和利用率等扩展指标</td>
+</tr>
+<tr>
+<td><code>-t</code></td>
+<td>为每组报告打印时间戳</td>
+</tr>
+<tr>
+<td><code>-y</code></td>
+<td>跳过“自系统启动以来”的第一组累计平均值</td>
+</tr>
+<tr>
+<td><code>-z</code></td>
+<td>隐藏采样周期内完全没有活动的设备</td>
+</tr>
+<tr>
+<td><code>nvme0n1 nvme1n1</code></td>
+<td>只查看指定设备</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>每秒持续采样</td>
+</tr>
+</tbody></table>
+<p><code>S_TIME_FORMAT=ISO</code> 让时间戳使用便于排序和查询的 ISO 格式。若系统上的 <code>iostat</code> 不支持某个参数，先用下面的命令核对版本和帮助：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iostat -V</span><br><span class="line">iostat --<span class="built_in">help</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="为什么每秒执行一次，结果却完全相同"><a href="#为什么每秒执行一次，结果却完全相同" class="headerlink" title="为什么每秒执行一次，结果却完全相同"></a>为什么每秒执行一次，结果却完全相同</h2><p><code>iostat</code> 的第一组报告默认不是“当前一秒”，而是从系统启动到现在的平均值；后续报告才表示相邻采样之间的变化。</p>
+<p>下面这种循环会反复启动新进程，每次都只取第一组累计值，因此多行结果可能几乎不变：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 不推荐</span></span><br><span class="line"><span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span></span><br><span class="line">  <span class="built_in">date</span> <span class="string">&#x27;+%F %T&#x27;</span></span><br><span class="line">  iostat -x nvme0n1 nvme1n1 1 1</span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+
+<p>应让同一个 <code>iostat</code> 进程持续采样，并用 <code>-y</code> 丢弃第一组累计值：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">S_TIME_FORMAT=ISO iostat -x -t -y nvme0n1 nvme1n1 1</span><br></pre></td></tr></table></figure>
+
+<p>如果只需要 60 个有效样本：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">S_TIME_FORMAT=ISO iostat -x -t -y nvme0n1 nvme1n1 1 60</span><br></pre></td></tr></table></figure>
+
+<h2 id="核心字段怎么看"><a href="#核心字段怎么看" class="headerlink" title="核心字段怎么看"></a>核心字段怎么看</h2><p>不同 <code>sysstat</code> 版本显示的列略有差异，排障时优先关注下面这些字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>判断方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r/s</code></td>
+<td>每秒完成的读请求数</td>
+<td>读 IOPS，已是合并后的块层请求数</td>
+</tr>
+<tr>
+<td><code>w/s</code></td>
+<td>每秒完成的写请求数</td>
+<td>写 IOPS，已是合并后的块层请求数</td>
+</tr>
+<tr>
+<td><code>rkB/s</code></td>
+<td>每秒读取的数据量</td>
+<td>实际按 KiB&#x2F;s 计算，尽管表头通常写作 kB&#x2F;s</td>
+</tr>
+<tr>
+<td><code>wkB/s</code></td>
+<td>每秒写入的数据量</td>
+<td>除以 1024 可近似换算为 MiB&#x2F;s</td>
+</tr>
+<tr>
+<td><code>r_await</code></td>
+<td>读请求平均完成时间</td>
+<td>单位毫秒，包括排队和设备处理时间</td>
+</tr>
+<tr>
+<td><code>w_await</code></td>
+<td>写请求平均完成时间</td>
+<td>单位毫秒，包括排队和设备处理时间</td>
+</tr>
+<tr>
+<td><code>aqu-sz</code></td>
+<td>平均队列长度</td>
+<td>老版本中叫 <code>avgqu-sz</code></td>
+</tr>
+<tr>
+<td><code>rareq-sz</code></td>
+<td>平均读请求大小</td>
+<td>单位 KiB</td>
+</tr>
+<tr>
+<td><code>wareq-sz</code></td>
+<td>平均写请求大小</td>
+<td>单位 KiB</td>
+</tr>
+<tr>
+<td><code>%util</code></td>
+<td>采样周期内设备存在 I&#x2F;O 的时间占比</td>
+<td>对串行设备接近 100% 时可能饱和；对 NVMe、RAID 不能单独作为性能上限依据</td>
+</tr>
+</tbody></table>
+<p>老版本中的 <code>avgrq-sz</code> 以扇区为单位，新版本的 <code>areq-sz</code> 以 KiB 为单位；<code>avgqu-sz</code> 后来改名为 <code>aqu-sz</code>。分析历史日志时应先保留并确认表头，不能只看没有列名的数据行。</p>
+<h3 id="IOPS-怎么算"><a href="#IOPS-怎么算" class="headerlink" title="IOPS 怎么算"></a>IOPS 怎么算</h3><p>若只考虑普通读写：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">总 IOPS ≈ r/s + w/s</span><br></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">r/s=45.32  w/s=579.78</span><br></pre></td></tr></table></figure>
+
+<p>总 IOPS 约为：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">45.32 + 579.78 = 625.10</span><br></pre></td></tr></table></figure>
+
+<p>这是当前业务实际发给块设备并完成的 IOPS，不是磁盘通过压力测试能够达到的最大 IOPS。</p>
+<h3 id="带宽和请求大小怎么算"><a href="#带宽和请求大小怎么算" class="headerlink" title="带宽和请求大小怎么算"></a>带宽和请求大小怎么算</h3><p>假设某块盘的数据为：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">w/s=579.78  wkB/s=12858.13</span><br></pre></td></tr></table></figure>
+
+<p>写带宽约为：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">12858.13 / 1024 ≈ 12.56 MiB/s</span><br></pre></td></tr></table></figure>
+
+<p>平均每个写请求约为：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">12858.13 / 579.78 ≈ 22.18 KiB</span><br></pre></td></tr></table></figure>
+
+<p>因此，数据行中的 <code>12858.13</code> 表示写带宽，不是 IOPS；是否正常还要结合业务负载、请求大小和设备基线判断。</p>
+<h2 id="util-100-是否等于磁盘跑满"><a href="#util-100-是否等于磁盘跑满" class="headerlink" title="%util=100% 是否等于磁盘跑满"></a><code>%util=100%</code> 是否等于磁盘跑满</h2><p>不一定。</p>
+<p><code>%util</code> 表示采样周期内，有 I&#x2F;O 请求被发往设备的时间占比。对一次只能串行处理一个请求的设备，它接近 100% 往往意味着饱和；但 NVMe SSD、RAID 和其他能并行处理请求的设备，即使 <code>%util=100%</code>，仍可能继续提高并发和吞吐。</p>
+<p>判断是否存在存储瓶颈，至少要同时观察：</p>
+<ol>
+<li><code>r_await</code>、<code>w_await</code> 是否相对正常基线持续升高；</li>
+<li><code>aqu-sz</code> 是否持续增长；</li>
+<li>IOPS 或带宽是否已经接近该设备在相同块大小、读写模式和队列深度下的实测上限；</li>
+<li>应用延迟是否与上述变化出现在同一时间窗；</li>
+<li>CPU、网络、文件系统和应用自身是否存在更早出现的瓶颈。</li>
+</ol>
+<p>同理，CPU 的 <code>%iowait</code> 低不能证明磁盘没有瓶颈，<code>%iowait</code> 高也不能单独证明某块磁盘已经饱和。</p>
+<h2 id="记录到日志文件"><a href="#记录到日志文件" class="headerlink" title="记录到日志文件"></a>记录到日志文件</h2><p>持续记录指定设备：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">S_TIME_FORMAT=ISO iostat -d -x -t -y -z nvme0n1 nvme1n1 1 \</span><br><span class="line">  &gt; iostat.log 2&gt;&amp;1</span><br></pre></td></tr></table></figure>
+
+<p>只记录 10 分钟：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">timeout</span> 10m <span class="built_in">env</span> S_TIME_FORMAT=ISO \</span><br><span class="line">  iostat -d -x -t -y -z nvme0n1 nvme1n1 1 \</span><br><span class="line">  &gt; iostat.log 2&gt;&amp;1</span><br></pre></td></tr></table></figure>
+
+<p>放到后台运行：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">nohup</span> <span class="built_in">env</span> S_TIME_FORMAT=ISO \</span><br><span class="line">  iostat -d -x -t -y -z nvme0n1 nvme1n1 1 \</span><br><span class="line">  &gt; iostat.log 2&gt;&amp;1 &amp;</span><br></pre></td></tr></table></figure>
+
+<p><code>iostat</code> 主要读取内核维护的统计信息，通常开销很低；长期运行时更需要关注的是日志文件自身的空间占用。生产环境建议设置采样期限或使用 <code>logrotate</code> 做轮转。</p>
+<h2 id="查询历史日志"><a href="#查询历史日志" class="headerlink" title="查询历史日志"></a>查询历史日志</h2><h3 id="查询指定时间范围"><a href="#查询指定时间范围" class="headerlink" title="查询指定时间范围"></a>查询指定时间范围</h3><p>假设时间戳格式为 <code>YYYY-MM-DD HH:MM:SS</code>，可提取 15:00 到 15:10 的完整报告：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">awk -v start=<span class="string">&#x27;2025-06-09 15:00:00&#x27;</span> \</span><br><span class="line">    -v end=<span class="string">&#x27;2025-06-09 15:10:00&#x27;</span> <span class="string">&#x27;</span></span><br><span class="line"><span class="string">/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ &#123;</span></span><br><span class="line"><span class="string">    ts = substr($0, 1, 19)</span></span><br><span class="line"><span class="string">    gsub(/T/, &quot; &quot;, ts)</span></span><br><span class="line"><span class="string">    keep = (ts &gt;= start &amp;&amp; ts &lt;= end)</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">keep</span></span><br><span class="line"><span class="string">&#x27;</span> iostat.log</span><br></pre></td></tr></table></figure>
+
+<p>ISO 格式按年月日从大到小排列，可以直接进行字符串范围比较。</p>
+<h3 id="只看某块设备"><a href="#只看某块设备" class="headerlink" title="只看某块设备"></a>只看某块设备</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">awk <span class="string">&#x27;</span></span><br><span class="line"><span class="string">/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ &#123; ts=$0 &#125;</span></span><br><span class="line"><span class="string">$1 == &quot;nvme0n1&quot; &#123; print ts; print &#125;</span></span><br><span class="line"><span class="string">&#x27;</span> iostat.log</span><br></pre></td></tr></table></figure>
+
+<p>临时查看时也可以直接使用：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">grep -E <span class="string">&#x27;^[0-9]&#123;4&#125;-|^nvme0n1[[:space:]]&#x27;</span> iostat.log</span><br></pre></td></tr></table></figure>
+
+<p>脚本需要稳定消费数据时，可考虑有限次数采样后输出 JSON：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iostat -d -x -y -o JSON nvme0n1 1 5 &gt; iostat.json</span><br></pre></td></tr></table></figure>
+
+<p>JSON 字段会随 <code>sysstat</code> 版本增加，不应依赖字段顺序。</p>
+<h2 id="ZFS-场景如何配合观察"><a href="#ZFS-场景如何配合观察" class="headerlink" title="ZFS 场景如何配合观察"></a>ZFS 场景如何配合观察</h2><p><code>iostat</code> 看到的是 Linux 块设备层的物理 I&#x2F;O；<code>zpool iostat</code> 看到的是 ZFS pool 和 vdev 的逻辑 I&#x2F;O。写合并、副本或 RAID 冗余都可能让两层数值不同，因此排查 ZFS 时应同时观察。</p>
+<p>查看底层设备：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">S_TIME_FORMAT=ISO iostat -d -x -t -y nvme0n1 nvme1n1 1</span><br></pre></td></tr></table></figure>
+
+<p>查看 ZFS pool 和 vdev，并显示日期时间：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">zpool iostat -v -T d -y 1</span><br></pre></td></tr></table></figure>
+
+<p>同样不要用循环反复执行 <code>zpool iostat -v 1 1</code>：它的第一组报告也默认是系统启动以来的平均值。让命令持续运行，或使用支持的 <code>-y</code> 跳过第一组累计值。</p>
+<h2 id="一套实际排障顺序"><a href="#一套实际排障顺序" class="headerlink" title="一套实际排障顺序"></a>一套实际排障顺序</h2><ol>
+<li>用 <code>lsblk</code> 确认真实设备名，不要把控制器名、旧设备名或不存在的别名直接写进采集命令；</li>
+<li>执行 <code>iostat -x -t -y &lt;device&gt; 1</code>，保存带表头的连续样本；</li>
+<li>先对齐应用异常的时间窗，再看 IOPS、带宽、延迟、队列和 <code>%util</code>；</li>
+<li>用同一块设备、相同块大小和读写模式的历史数据或 <code>fio</code> 基准作对照；</li>
+<li>ZFS 环境再结合 <code>zpool iostat</code>，定位差异发生在 pool、vdev 还是底层设备；</li>
+<li>若设备指标正常，继续检查 CPU、网络、文件系统和应用并发，不要为了“跑满磁盘”而盲目增加压力。</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a href="https://www.man7.org/linux/man-pages/man1/iostat.1.html">iostat(1) Linux manual page</a></li>
+<li><a href="https://github.com/sysstat/sysstat">sysstat 官方项目</a></li>
+<li><a href="https://openzfs.github.io/openzfs-docs/man/master/8/zpool-iostat.8.html">OpenZFS：zpool-iostat(8)</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+        <tag>存储</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>macOS Magnet 快捷键与窗口隐藏技巧</title>
+    <url>/2026/08/11/macOS-Magnet%E5%BF%AB%E6%8D%B7%E9%94%AE%E4%B8%8E%E7%AA%97%E5%8F%A3%E9%9A%90%E8%97%8F%E6%8A%80%E5%B7%A7/</url>
+    <content><![CDATA[<h1 id="macOS-Magnet-快捷键与窗口隐藏技巧"><a href="#macOS-Magnet-快捷键与窗口隐藏技巧" class="headerlink" title="macOS Magnet 快捷键与窗口隐藏技巧"></a>macOS Magnet 快捷键与窗口隐藏技巧</h1><p><a href="https://magnet.crowdcafe.com/">Magnet</a> 是一款 macOS 窗口管理工具，可以通过快捷键快速完成左右分屏、四分屏、三分屏和跨显示器移动。</p>
+<p>本文整理我日常使用的 Magnet 快捷键，以及为什么我更喜欢使用 <code>⌘H + ⌘Tab</code> 隐藏和恢复窗口，而不是 <code>⌘M</code> 最小化。</p>
+<span id="more"></span>
+
+<h2 id="Magnet-常用快捷键"><a href="#Magnet-常用快捷键" class="headerlink" title="Magnet 常用快捷键"></a>Magnet 常用快捷键</h2><p>Magnet 的快捷键可以自定义，下面记录的是默认配置。</p>
+<h3 id="半屏、最大化和居中"><a href="#半屏、最大化和居中" class="headerlink" title="半屏、最大化和居中"></a>半屏、最大化和居中</h3><table>
+<thead>
+<tr>
+<th>功能</th>
+<th>快捷键</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>左半屏</td>
+<td><code>⌃ Control + ⌥ Option + ←</code></td>
+</tr>
+<tr>
+<td>右半屏</td>
+<td><code>⌃ Control + ⌥ Option + →</code></td>
+</tr>
+<tr>
+<td>上半屏</td>
+<td><code>⌃ Control + ⌥ Option + ↑</code></td>
+</tr>
+<tr>
+<td>下半屏</td>
+<td><code>⌃ Control + ⌥ Option + ↓</code></td>
+</tr>
+<tr>
+<td>最大化</td>
+<td><code>⌃ Control + ⌥ Option + Enter</code></td>
+</tr>
+<tr>
+<td>居中</td>
+<td><code>⌃ Control + ⌥ Option + C</code></td>
+</tr>
+<tr>
+<td>恢复原始大小和位置</td>
+<td><code>⌃ Control + ⌥ Option + Backspace</code></td>
+</tr>
+</tbody></table>
+<p>日常开发先记住下面三个即可：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">⌃⌥←       左半屏</span><br><span class="line">⌃⌥→       右半屏</span><br><span class="line">⌃⌥Enter   最大化</span><br></pre></td></tr></table></figure>
+
+<p>这三个快捷键基本可以覆盖 IDE、终端和浏览器的窗口布局。</p>
+<h3 id="四分屏"><a href="#四分屏" class="headerlink" title="四分屏"></a>四分屏</h3><p>可以把 <code>U I J K</code> 记成键盘上的 <code>2 × 2</code> 方格：</p>
+<table>
+<thead>
+<tr>
+<th>左上 <code>⌃⌥U</code></th>
+<th>右上 <code>⌃⌥I</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>左下 <code>⌃⌥J</code></td>
+<td>右下 <code>⌃⌥K</code></td>
+</tr>
+</tbody></table>
+<h3 id="三分屏"><a href="#三分屏" class="headerlink" title="三分屏"></a>三分屏</h3><table>
+<thead>
+<tr>
+<th>功能</th>
+<th>快捷键</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>左侧 <code>1/3</code></td>
+<td><code>⌃⌥D</code></td>
+</tr>
+<tr>
+<td>右侧 <code>1/3</code></td>
+<td><code>⌃⌥G</code></td>
+</tr>
+<tr>
+<td>左侧 <code>2/3</code></td>
+<td><code>⌃⌥E</code></td>
+</tr>
+<tr>
+<td>右侧 <code>2/3</code></td>
+<td><code>⌃⌥T</code></td>
+</tr>
+</tbody></table>
+<h3 id="多显示器"><a href="#多显示器" class="headerlink" title="多显示器"></a>多显示器</h3><table>
+<thead>
+<tr>
+<th>功能</th>
+<th>快捷键</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>移到上一个显示器</td>
+<td><code>⌃⌥⌘←</code></td>
+</tr>
+<tr>
+<td>移到下一个显示器</td>
+<td><code>⌃⌥⌘→</code></td>
+</tr>
+</tbody></table>
+<h2 id="隐藏窗口比最小化更顺手"><a href="#隐藏窗口比最小化更顺手" class="headerlink" title="隐藏窗口比最小化更顺手"></a>隐藏窗口比最小化更顺手</h2><p>macOS 的“隐藏”和“最小化”行为不同：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>快捷键</th>
+<th>切回来时的表现</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>隐藏当前 App</td>
+<td><code>⌘H</code></td>
+<td>使用 <code>⌘Tab</code> 切回 App，窗口会直接重新显示</td>
+</tr>
+<tr>
+<td>最小化当前窗口</td>
+<td><code>⌘M</code></td>
+<td>使用 <code>⌘Tab</code> 只能切回 App，窗口不一定恢复</td>
+</tr>
+<tr>
+<td>关闭当前窗口或标签页</td>
+<td><code>⌘W</code></td>
+<td>关闭窗口，但不会像 <code>⌘Q</code> 一样退出整个 App</td>
+</tr>
+</tbody></table>
+<p>因此我更常用下面这组操作：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">⌘H     隐藏当前 App</span><br><span class="line">⌘Tab   切回 App，并重新显示窗口</span><br></pre></td></tr></table></figure>
+
+<p><code>⌘H + ⌘Tab</code> 比 <code>⌘M</code> 更适合频繁切换 Terminal、浏览器和 IDE，也不需要额外处理最小化窗口的恢复。</p>
+<p>需要注意，<code>⌘H</code> 隐藏的是当前 App 的全部窗口，而 <code>⌘M</code> 只最小化当前窗口。如果需要暂时收起整个 App，优先使用 <code>⌘H</code>；如果只想收起某一个窗口，再使用 <code>⌘M</code>。</p>
+<h2 id="如何恢复被最小化的窗口"><a href="#如何恢复被最小化的窗口" class="headerlink" title="如何恢复被最小化的窗口"></a>如何恢复被最小化的窗口</h2><p>如果已经使用 <code>⌘M</code> 最小化窗口，可以使用下面两种方式恢复。</p>
+<h3 id="使用键盘恢复"><a href="#使用键盘恢复" class="headerlink" title="使用键盘恢复"></a>使用键盘恢复</h3><ol>
+<li>按住 <code>⌘ Command</code>。</li>
+<li>使用 <code>Tab</code> 选中目标 App。</li>
+<li>在松开 <code>⌘</code> 前按住 <code>⌥ Option</code>。</li>
+<li>松开 <code>⌘ Command</code>。</li>
+</ol>
+<p>也就是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">按住 ⌘ → Tab 选中 App → 按住 ⌥ → 松开 ⌘</span><br></pre></td></tr></table></figure>
+
+<h3 id="使用-App-Expose-恢复"><a href="#使用-App-Expose-恢复" class="headerlink" title="使用 App Exposé 恢复"></a>使用 App Exposé 恢复</h3><p>按下 <code>⌃ Control + ↓</code> 打开 App Exposé，再选择被最小化的窗口。</p>
+<h2 id="我的使用习惯"><a href="#我的使用习惯" class="headerlink" title="我的使用习惯"></a>我的使用习惯</h2><p>日常写代码时，我主要记住两组快捷键：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">⌃⌥← / ⌃⌥→   调整左右分屏</span><br><span class="line">⌘H / ⌘Tab    隐藏和恢复 App</span><br></pre></td></tr></table></figure>
+
+<p>Magnet 负责窗口布局，<code>⌘H + ⌘Tab</code> 负责快速切换 App。这样比频繁使用 <code>⌘M</code> 更容易形成肌肉记忆，窗口也不会一直堆在 Dock 右侧。</p>
+]]></content>
+      <categories>
+        <category>工具箱</category>
+      </categories>
+      <tags>
+        <tag>Mac</tag>
+        <tag>Magnet</tag>
+        <tag>快捷键</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>macOS + Clash TUN 导致同网段 ping 不通</title>
     <url>/2026/07/06/macOS-Clash-TUN-%E5%90%8C%E7%BD%91%E6%AE%B5-ping-%E4%B8%8D%E9%80%9A%E6%8E%92%E6%9F%A5/</url>
     <content><![CDATA[<p>本机 <code>192.168.50.22</code> 可以 ping 通 <code>192.168.50.25</code>，但 <code>50.25</code> ping 不通本机。</p>
@@ -2713,50 +3391,259 @@
   <entry>
     <title>每天学习一个命令: vmstat 统计系统资源使用</title>
     <url>/2022/11/07/%E6%AF%8F%E5%A4%A9%E5%AD%A6%E4%B9%A0%E4%B8%80%E4%B8%AA%E5%91%BD%E4%BB%A4-vmstat-%E7%BB%9F%E8%AE%A1%E7%B3%BB%E7%BB%9F%E8%B5%84%E6%BA%90%E4%BD%BF%E7%94%A8/</url>
-    <content><![CDATA[<blockquote>
-<p>vmstat 会报告有关 processes, memory, paging, block IO,traps, disks 和 cpu 活动信息。<br>生成的第一个报告给出了自上次重新启动依赖的平均值。优势是可以按周期或实时采集上述信息。</p>
+    <content><![CDATA[<p><code>vmstat</code> 是 Linux 上经典的系统性能观测工具，用于查看进程调度、内存、Swap、块设备 I&#x2F;O、系统中断和 CPU 状态。它不负责直接给出“哪个进程有问题”，但很适合用作故障现场的第一眼体检工具。</p>
+<span id="more"></span>
+
+<h2 id="快速开始"><a href="#快速开始" class="headerlink" title="快速开始"></a>快速开始</h2><p>最常用的命令是：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">vmstat 1</span><br></pre></td></tr></table></figure>
+
+<p>表示每 1 秒输出一次，直到按 <code>Ctrl+C</code> 停止。若只想每 2 秒采样一次、共输出 5 次：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">vmstat 2 5</span><br></pre></td></tr></table></figure>
+
+<p>典型输出如下：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st</span><br><span class="line"> 2  0      0  82348  12000 922000    0    0    10    20  500 1000  5  2 92  1  0</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>不带 <code>-y</code> 时，第一行数据是系统自启动以来的平均值，不能代表当前这一秒。观察实时趋势时可以忽略第一行，或直接执行 <code>vmstat -y 1</code>。</p>
 </blockquote>
-<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 1  0      0 759052 1845192 99157744    0    0     0    50    0    0  2  1 96  1  0</span><br></pre></td></tr></table></figure>
-<h3 id="解释输出信息"><a href="#解释输出信息" class="headerlink" title="解释输出信息"></a>解释输出信息</h3><p><code>procs</code>:</p>
-<pre><code>r: 正在运行的或者等待CPU运行的进程数。当这个值长时间超过了CPU个数，就会出现CPU瓶颈。一般负载大于3就算比较高，大于5是高，大于10系统就不正常。
-b: 等待 I/O 完成的阻塞的进程数。
-</code></pre>
-<p><code>memory</code>: </p>
-<pre><code>以下参数会受到 --unit 参数的影响
+<h2 id="六组核心指标"><a href="#六组核心指标" class="headerlink" title="六组核心指标"></a>六组核心指标</h2><h3 id="1-procs：进程调度"><a href="#1-procs：进程调度" class="headerlink" title="1. procs：进程调度"></a>1. procs：进程调度</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>关注点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r</code></td>
+<td>正在运行或等待 CPU 的可运行进程数</td>
+<td>持续高于逻辑 CPU 数量，说明 CPU 运行队列存在压力</td>
+</tr>
+<tr>
+<td><code>b</code></td>
+<td>处于不可中断睡眠的进程数</td>
+<td>持续升高时，通常需要排查 I&#x2F;O 或其他内核等待</td>
+</tr>
+</tbody></table>
+<p>先用 <code>nproc</code> 查看逻辑 CPU 数量，再判断 <code>r</code> 是否长期过高。不要用固定的 <code>r &gt; 3</code> 或 <code>r &gt; 5</code> 判断所有机器：4 核和 64 核机器的基线完全不同。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">nproc</span></span><br></pre></td></tr></table></figure>
 
-swpd: 交换内存使用量。
-free: 空闲内存的数量。
-buff: 缓冲区内存使用量。
-cache: 缓存区内存使用量。
-incat: 禁用的内存数量。(-a option)
-active: 可用的内存数量。(-a option)
-</code></pre>
-<p><code>swap</code>:</p>
-<pre><code>&gt; 以下参数会受到 `--unit` 参数的影响
+<h3 id="2-memory：内存"><a href="#2-memory：内存" class="headerlink" title="2. memory：内存"></a>2. memory：内存</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>swpd</code></td>
+<td>已使用的 Swap 空间</td>
+</tr>
+<tr>
+<td><code>free</code></td>
+<td>完全空闲的内存</td>
+</tr>
+<tr>
+<td><code>buff</code></td>
+<td>用作 buffer 的内存</td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td>用作 page cache 的内存</td>
+</tr>
+<tr>
+<td><code>inact</code></td>
+<td>非活跃内存，仅在 <code>-a</code> 模式显示</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td>活跃内存，仅在 <code>-a</code> 模式显示</td>
+</tr>
+</tbody></table>
+<p><code>free</code> 很小不等于内存不足。Linux 会利用空闲内存做缓存，判断内存压力时应结合 <code>si</code>、<code>so</code>，并使用 <code>free -h</code> 查看 <code>available</code>。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">free -h</span><br><span class="line">vmstat -a 1</span><br></pre></td></tr></table></figure>
 
-si: 从磁盘交换到内存的内存量(/s)。
-so: 从内存交换到磁盘内存量(/s)。
-</code></pre>
-<p><code>io</code>:</p>
-<pre><code>bi: 从块设备接受的块(block/s)。
-bo: 发送到块设备的块(block/s)。
-</code></pre>
-<p><code>system</code>:</p>
-<pre><code>in: 每秒钟系统中断数，包括时钟中断。
-cs: 每秒钟系统切换上下文的次数。
-</code></pre>
-<p><code>cpu</code>:</p>
-<pre><code>以下参数之和是总的CPU时间。
+<h3 id="3-swap：换页活动"><a href="#3-swap：换页活动" class="headerlink" title="3. swap：换页活动"></a>3. swap：换页活动</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>si</code></td>
+<td>每秒从 Swap 换入内存的数据量</td>
+</tr>
+<tr>
+<td><code>so</code></td>
+<td>每秒从内存换出到 Swap 的数据量</td>
+</tr>
+</tbody></table>
+<p><code>swpd</code> 非零只表示已有页面位于 Swap，并不说明当前仍有内存压力。如果 <code>si</code>、<code>so</code> 持续较高，才说明系统正在频繁换页，应用延迟通常也会随之上升。</p>
+<h3 id="4-io：块设备-I-x2F-O"><a href="#4-io：块设备-I-x2F-O" class="headerlink" title="4. io：块设备 I&#x2F;O"></a>4. io：块设备 I&#x2F;O</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>bi</code></td>
+<td>每秒从块设备接收的块数</td>
+</tr>
+<tr>
+<td><code>bo</code></td>
+<td>每秒发送到块设备的块数</td>
+</tr>
+</tbody></table>
+<p><code>vmstat</code> 只能反映整机 I&#x2F;O 活动，无法定位具体磁盘，也不能仅凭 <code>bi</code>、<code>bo</code> 判断磁盘是否饱和。进一步分析应使用：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">iostat -x 1</span><br></pre></td></tr></table></figure>
 
-us: CPU在用户空间所占用的时间。
-sy: CPU在内核空间所占用的时间。
-id: CPU空闲时间。
-wa: CPU在等待IO所占用的实际。
-st: 虚拟机中窃取CPU的时间。(虚拟机需要关注, 一般 `steal time` 维持在很高的数值上，大概率是服务器创建虚拟机太多。)
-</code></pre>
-<h3 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h3><h4 id="每2秒显示报告共5次"><a href="#每2秒显示报告共5次" class="headerlink" title="每2秒显示报告共5次"></a>每2秒显示报告共5次</h4><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">root@compute:~<span class="comment"># vmstat 2 5</span></span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 0  1      0 757084 1844672 99160048    0    0     0    50    0    0  2  1 96  1  0</span><br><span class="line"> 2  1      0 756924 1844672 99160096    0    0     8   604 4883 9736  4  1 95  1  0</span><br><span class="line"> 0  0      0 757040 1844672 99160144    0    0     8   444 3395 8276  2  0 97  1  0</span><br><span class="line"> 0  0      0 757600 1844672 99160184    0    0     0   466 2905 7775  1  0 99  1  0</span><br><span class="line"> 0  0      0 758116 1844676 99160184    0    0     0  2440 3070 7604  1  0 99  1  0</span><br></pre></td></tr></table></figure>
+<p>重点关注目标设备的吞吐、IOPS、<code>await</code> 和 <code>%util</code>，并结合设备类型与业务基线判断。</p>
+<h3 id="5-system：中断与上下文切换"><a href="#5-system：中断与上下文切换" class="headerlink" title="5. system：中断与上下文切换"></a>5. system：中断与上下文切换</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>in</code></td>
+<td>每秒中断次数，包括时钟中断</td>
+</tr>
+<tr>
+<td><code>cs</code></td>
+<td>每秒上下文切换次数</td>
+</tr>
+</tbody></table>
+<p><code>in</code>、<code>cs</code> 没有适用于所有机器的固定阈值，应观察它们是否相对历史基线突增。<code>cs</code> 异常升高时，可继续排查大量线程或进程竞争、高频网络请求、锁竞争以及频繁唤醒。</p>
+<h3 id="6-cpu：CPU-时间分布"><a href="#6-cpu：CPU-时间分布" class="headerlink" title="6. cpu：CPU 时间分布"></a>6. cpu：CPU 时间分布</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>us</code></td>
+<td>用户态 CPU 时间占比</td>
+</tr>
+<tr>
+<td><code>sy</code></td>
+<td>内核态 CPU 时间占比</td>
+</tr>
+<tr>
+<td><code>id</code></td>
+<td>CPU 空闲时间占比</td>
+</tr>
+<tr>
+<td><code>wa</code></td>
+<td>CPU 等待 I&#x2F;O 的时间占比</td>
+</tr>
+<tr>
+<td><code>st</code></td>
+<td>虚拟机等待宿主机分配 CPU 的时间占比</td>
+</tr>
+</tbody></table>
+<p>可以简记为：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">us = 应用程序在计算</span><br><span class="line">sy = 内核在工作</span><br><span class="line">wa = CPU 在等待 I/O</span><br><span class="line">st = 虚拟机想运行，但物理 CPU 时间被宿主机占用</span><br></pre></td></tr></table></figure>
 
-<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a href="https://manned.org/vmstat#head2">vmstat - manned.org</a><br><a href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解CPU steal time - MKY-门可意 - 博客园</a><br><a href="https://www.cnblogs.com/kevingrace/p/5991604.html">linux下的缓存机制buffer、cache、swap - 运维总结 [“Cannot allocate memory”问题] - 散尽浮华 - 博客园</a><br><a href="https://www.cnblogs.com/ggjucheng/archive/2012/01/05/2312625.html">Linux vmstat命令实战详解 - ggjucheng - 博客园</a></p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">us sy id wa st</span><br><span class="line">90  5  5  0  0</span><br></pre></td></tr></table></figure>
+
+<p>表示 CPU 主要用于运行用户程序，整体已接近打满。如果是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">us sy id wa st</span><br><span class="line">10  5 20 65  0</span><br></pre></td></tr></table></figure>
+
+<p>则大量 CPU 时间消耗在等待 I&#x2F;O，应转向存储链路排查。<code>wa</code> 高只是线索，不等于已经证明磁盘饱和。</p>
+<p>在 KVM、云主机等虚拟化环境中还要特别关注 <code>st</code>：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">us sy id wa st</span><br><span class="line">20  5 20  0 55</span><br></pre></td></tr></table></figure>
+
+<p><code>st=55%</code> 表示虚拟机有大量时间等待 Hypervisor 调度物理 CPU，常见原因包括宿主机 CPU 超分、物理 CPU 竞争或调度压力。</p>
+<h2 id="常用参数"><a href="#常用参数" class="headerlink" title="常用参数"></a>常用参数</h2><table>
+<thead>
+<tr>
+<th>命令</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>vmstat 1</code></td>
+<td>每秒持续采样</td>
+</tr>
+<tr>
+<td><code>vmstat 2 5</code></td>
+<td>每 2 秒采样一次，共 5 次</td>
+</tr>
+<tr>
+<td><code>vmstat -y 1</code></td>
+<td>跳过“自系统启动以来”的第一行统计</td>
+</tr>
+<tr>
+<td><code>vmstat -w 1</code></td>
+<td>使用更宽的列宽显示</td>
+</tr>
+<tr>
+<td><code>vmstat -a 1</code></td>
+<td>显示 active&#x2F;inactive 内存</td>
+</tr>
+<tr>
+<td><code>vmstat -S M 1</code></td>
+<td>以 MiB 显示受单位参数影响的字段</td>
+</tr>
+<tr>
+<td><code>vmstat -s</code></td>
+<td>显示内存和系统事件汇总</td>
+</tr>
+<tr>
+<td><code>vmstat -d</code></td>
+<td>显示磁盘统计</td>
+</tr>
+</tbody></table>
+<p>不同发行版所带的 <code>procps-ng</code> 版本可能支持不同参数，可用 <code>vmstat --help</code> 和 <code>man vmstat</code> 核对当前系统。</p>
+<h2 id="实际排障思路"><a href="#实际排障思路" class="headerlink" title="实际排障思路"></a>实际排障思路</h2><p>执行 <code>vmstat -y 1</code> 后，先看 <code>r</code>、<code>b</code>、<code>si/so</code> 和 <code>us/sy/id/wa/st</code>，再按以下模式缩小范围：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>初步判断</th>
+<th>下一步</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r</code> 持续高、<code>us</code> 高</td>
+<td>应用消耗大量 CPU</td>
+<td><code>mpstat -P ALL 1</code>、<code>pidstat -u 1</code></td>
+</tr>
+<tr>
+<td><code>r</code> 持续高、<code>sy</code> 高</td>
+<td>内核态开销较高</td>
+<td>检查 syscall、网络、中断、锁竞争</td>
+</tr>
+<tr>
+<td><code>b</code> 高、<code>wa</code> 高</td>
+<td>存在 I&#x2F;O 或内核等待</td>
+<td><code>iostat -x 1</code>、检查 D 状态进程</td>
+</tr>
+<tr>
+<td><code>si/so</code> 持续高</td>
+<td>内存压力和频繁换页</td>
+<td><code>free -h</code>、<code>pidstat -r 1</code></td>
+</tr>
+<tr>
+<td><code>st</code> 高</td>
+<td>虚拟机受到宿主机 CPU 竞争影响</td>
+<td>检查 Hypervisor 的 CPU 超分与调度</td>
+</tr>
+</tbody></table>
+<p>常用的组合命令是：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">vmstat -y 1</span><br><span class="line">iostat -x 1</span><br><span class="line">mpstat -P ALL 1</span><br><span class="line">pidstat 1</span><br></pre></td></tr></table></figure>
+
+<p><code>vmstat</code> 负责判断问题大致落在 CPU、内存还是 I&#x2F;O；<code>mpstat</code> 继续拆分到 CPU 核，<code>iostat</code> 拆分到块设备，<code>pidstat</code> 再定位到具体进程。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a href="https://gitlab.com/procps-ng/procps/-/blob/master/man/vmstat.8">procps-ng：vmstat 官方手册源码</a></li>
+<li><a href="https://gitlab.com/procps-ng/procps">procps-ng 项目</a></li>
+<li><a href="https://www.cnblogs.com/menkeyi/p/6732020.html">理解 CPU steal time</a></li>
+</ul>
 ]]></content>
       <categories>
         <category>工具箱</category>
