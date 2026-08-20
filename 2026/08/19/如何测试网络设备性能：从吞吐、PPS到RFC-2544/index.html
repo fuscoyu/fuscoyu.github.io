@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>如何测试网络设备性能：从吞吐、PPS 到 RFC 2544</title>
+<meta name="keywords" content="如何测试网络设备性能：从吞吐、PPS 到 RFC 2544, fuscoyu&#39;s Blog">
+<meta name="description" content="
+本文由 Codex 根据一次网络设备性能测试讨论辅助整理生成。文中的数值用于说明方法，不代表某台设备的实测结果。
+
+测试路由器、交换机或软路由时，只跑一次 iperf3，最多只能回答“这组 TCP 流量跑了多快”，不能完整说明设备性能。
+">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="如何测试网络设备性能：从吞吐、PPS 到 RFC 2544">
+<meta property="og:description" content="
+本文由 Codex 根据一次网络设备性能测试讨论辅助整理生成。文中的数值用于说明方法，不代表某台设备的实测结果。
+
+测试路由器、交换机或软路由时，只跑一次 iperf3，最多只能回答“这组 TCP 流量跑了多快”，不能完整说明设备性能。
+">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">如何测试网络设备性能：从吞吐、PPS 到 RFC 2544</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-08-20</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Network/">
+              Network
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/RFC-2544/">
+              RFC 2544
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/iperf3/">
+              iperf3
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/TRex/">
+              TRex
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <blockquote>
+<p>本文由 Codex 根据一次网络设备性能测试讨论辅助整理生成。文中的数值用于说明方法，不代表某台设备的实测结果。</p>
+</blockquote>
+<p>测试路由器、交换机或软路由时，只跑一次 <code>iperf3</code>，最多只能回答“这组 TCP 流量跑了多快”，不能完整说明设备性能。</p>
+<p>一套有意义的测试，至少应该同时观察：<strong>吞吐、PPS、丢包、时延、并发流和长时间稳定性</strong>。如果被测对象带有 NAT、防火墙或负载均衡功能，还要增加并发连接数和每秒新建连接数等指标。</p>
+<span id="more"></span>
+
+<h2 id="先明确测试对象和指标"><a href="#先明确测试对象和指标" class="headerlink" title="先明确测试对象和指标"></a>先明确测试对象和指标</h2><p>DUT 是 <strong>Device Under Test</strong> 的缩写，即被测设备。例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">流量发生器 A ────── DUT ────── 流量接收器 B</span><br><span class="line">                 路由器</span><br></pre></td></tr></table></figure>
+
+<p>A 负责产生流量，B 负责接收流量，测试流量必须经过 DUT。</p>
+<p>常见指标如下：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>含义</th>
+<th>主要反映什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Throughput</td>
+<td>无丢包时可持续转发的最大速率</td>
+<td>带宽与综合转发能力</td>
+</tr>
+<tr>
+<td>PPS</td>
+<td>每秒转发的包数</td>
+<td>逐包处理能力</td>
+</tr>
+<tr>
+<td>Frame Loss</td>
+<td>输入帧与输出帧的数量差</td>
+<td>是否超过设备极限</td>
+</tr>
+<tr>
+<td>Latency</td>
+<td>帧经过 DUT 所需的时间</td>
+<td>转发和排队时延</td>
+</tr>
+<tr>
+<td>Jitter</td>
+<td>时延的波动程度</td>
+<td>实时业务体验</td>
+</tr>
+<tr>
+<td>Concurrent Flows</td>
+<td>同时存在的流数量</td>
+<td>NAT、防火墙、负载均衡容量</td>
+</tr>
+<tr>
+<td>CPS</td>
+<td>每秒新建连接数</td>
+<td>有状态设备的连接建立能力</td>
+</tr>
+<tr>
+<td>Stability</td>
+<td>持续高负载下的表现</td>
+<td>温度、内存泄漏、降频等问题</td>
+</tr>
+</tbody></table>
+<p>其中最容易被忽略的是：<strong>Gbps 高不代表 PPS 高。</strong></p>
+<h2 id="什么是线速"><a href="#什么是线速" class="headerlink" title="什么是线速"></a>什么是线速</h2><p>线速（Line Rate 或 Wire Speed）不是五类线、六类线的分类，而是物理链路的额定传输速率。</p>
+<p>例如一个 <code>10GbE</code> 网口的线速是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">10,000,000,000 bit/s</span><br></pre></td></tr></table></figure>
+
+<p>如果 DUT 能在持续输入 <code>10 Gbit/s</code> 流量时全部转发，没有丢包，通常称为“线速转发”。</p>
+<p>网线类别与线速属于不同层次：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">Cat5e / Cat6 / Cat6A</span><br><span class="line">        ↓</span><br><span class="line">传输介质的规格</span><br><span class="line"></span><br><span class="line">1GbE / 10GbE</span><br><span class="line">        ↓</span><br><span class="line">链路协商出的额定速率</span><br><span class="line"></span><br><span class="line">线速转发</span><br><span class="line">        ↓</span><br><span class="line">DUT 能否在该额定速率下持续无丢包转发</span><br></pre></td></tr></table></figure>
+
+<h2 id="为什么要测试-64B-小包"><a href="#为什么要测试-64B-小包" class="headerlink" title="为什么要测试 64B 小包"></a>为什么要测试 64B 小包</h2><p>Ethernet 规定，从目的 MAC 到 FCS 的最小帧长度是 <code>64B</code>。以无 Payload 的 IPv4 + TCP 帧为例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Destination MAC       6B</span><br><span class="line">Source MAC            6B</span><br><span class="line">EtherType             2B</span><br><span class="line">IPv4 Header          20B</span><br><span class="line">TCP Header           20B</span><br><span class="line">Padding               6B</span><br><span class="line">FCS                   4B</span><br><span class="line">-------------------------</span><br><span class="line">Ethernet Frame       64B</span><br></pre></td></tr></table></figure>
+
+<p>源、目的 MAC，源、目的 IP，源、目的端口只是各层 Header 的一部分。IPv4 和 TCP 还需要长度、TTL、协议号、序列号、确认号、Flags、Checksum 等控制字段。</p>
+<h3 id="Padding-是什么"><a href="#Padding-是什么" class="headerlink" title="Padding 是什么"></a>Padding 是什么</h3><p>Padding 是没有业务含义的填充字节。当 Ethernet Header、上层 Header 和 Payload 不足以组成最小帧时，网卡会自动补齐。</p>
+<p>上面的 IPv4 + TCP 内容在 FCS 前只有 <code>54B</code>，而 FCS 前至少需要 <code>60B</code>，因此需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">60B - 54B = 6B Padding</span><br></pre></td></tr></table></figure>
+
+<p>接收端根据 IP 层的长度字段识别有效内容，不会把 Padding 当成上层数据。</p>
+<h3 id="为什么计算-PPS-时按-84B"><a href="#为什么计算-PPS-时按-84B" class="headerlink" title="为什么计算 PPS 时按 84B"></a>为什么计算 PPS 时按 84B</h3><p><code>64B</code> 是 Ethernet Frame 本身的大小，但连续发送一个最小帧所占用的链路时间还包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Preamble + SFD        8B</span><br><span class="line">Ethernet Frame       64B</span><br><span class="line">Inter-Frame Gap      12B 等效时间</span><br><span class="line">-------------------------</span><br><span class="line">链路时间占用         84B</span><br></pre></td></tr></table></figure>
+
+<p>其中 IFG 是 <code>96 bit-times</code> 的线路空闲时间，并不是真的发送了 <code>12B</code> 数据。为了计算方便，可以把它折算成 <code>12 Byte-times</code>。</p>
+<p>因此，1GbE 上 64B 小包的理论最大包速率是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">1,000,000,000 ÷ ((64 + 8 + 12) × 8)</span><br><span class="line">≈ 1,488,095 packet/s</span><br><span class="line">≈ 1.488 Mpps</span><br></pre></td></tr></table></figure>
+
+<p>10GbE 则约为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">14.88 Mpps</span><br></pre></td></tr></table></figure>
+
+<p>同一条 10GbE 链路发送大帧时，每秒需要处理的帧少得多：</p>
+<table>
+<thead>
+<tr>
+<th align="right">Ethernet Frame</th>
+<th align="right">10GbE 理论帧率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">64B</td>
+<td align="right">14.88 Mpps</td>
+</tr>
+<tr>
+<td align="right">128B</td>
+<td align="right">8.45 Mpps</td>
+</tr>
+<tr>
+<td align="right">256B</td>
+<td align="right">4.53 Mpps</td>
+</tr>
+<tr>
+<td align="right">512B</td>
+<td align="right">2.35 Mpps</td>
+</tr>
+<tr>
+<td align="right">1024B</td>
+<td align="right">1.20 Mpps</td>
+</tr>
+<tr>
+<td align="right">1280B</td>
+<td align="right">0.96 Mpps</td>
+</tr>
+<tr>
+<td align="right">1518B</td>
+<td align="right">0.81 Mpps</td>
+</tr>
+</tbody></table>
+<p>计算公式为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">PPS = 链路速率 ÷ ((Ethernet Frame + 8B Preamble/SFD + 12B IFG) × 8)</span><br></pre></td></tr></table></figure>
+
+<p>因此，64B 小包会把 ASIC、CPU、FIB 查询、ACL、conntrack、队列、DMA 和网卡描述符的逐包开销放大。设备可能在 1518B 大帧下跑满 10GbE，却无法在线速下转发 64B 小包。</p>
+<p>可以简单记成：<strong>大包主要测带宽，小包主要测 PPS。</strong></p>
+<h2 id="搭建隔离测试拓扑"><a href="#搭建隔离测试拓扑" class="headerlink" title="搭建隔离测试拓扑"></a>搭建隔离测试拓扑</h2><p>路由器的基础拓扑可以是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Server A                  DUT                   Server B</span><br><span class="line">10.0.0.1/24        10.0.0.254  10.0.1.254       10.0.1.1/24</span><br><span class="line">    └────── 10GbE ────────┘          └────── 10GbE ──────┘</span><br></pre></td></tr></table></figure>
+
+<p>交换机则让 A 和 B 接在不同端口，并确保流量经过待测转发路径。</p>
+<p>测试环境应满足以下条件：</p>
+<ul>
+<li>A、B 的网卡和 CPU 能产生、接收高于 DUT 极限的流量；</li>
+<li>固定链路速率、MTU、流数量、帧大小、方向和测试时长；</li>
+<li>同时记录 DUT 与测试机的 CPU、IRQ、丢包计数和网卡统计；</li>
+<li>分别测试单向、反向和双向流量；</li>
+<li>使用独立实验网络，避免互联网、共享链路和其他业务流量污染结果。</li>
+</ul>
+<p>RFC 6815 明确指出，RFC 2544 的方法用于隔离实验环境，不应直接用于承载用户流量的生产网络。它会主动制造过载，既可能影响业务，也无法在存在外部丢包时得到可靠结果。</p>
+<h2 id="第一阶段：用-iperf3-检查基本吞吐"><a href="#第一阶段：用-iperf3-检查基本吞吐" class="headerlink" title="第一阶段：用 iperf3 检查基本吞吐"></a>第一阶段：用 iperf3 检查基本吞吐</h2><p>先在 Server B 启动服务端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iperf3 -s</span><br></pre></td></tr></table></figure>
+
+<p>在 Server A 测试单条 TCP 流：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iperf3 -c 10.0.1.1 -t 60</span><br></pre></td></tr></table></figure>
+
+<p>再逐步增加并发流：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">iperf3 -c 10.0.1.1 -P 4 -t 60</span><br><span class="line">iperf3 -c 10.0.1.1 -P 8 -t 60</span><br><span class="line">iperf3 -c 10.0.1.1 -P 16 -t 60</span><br></pre></td></tr></table></figure>
+
+<p>反向测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iperf3 -c 10.0.1.1 -P 8 -t 60 -R</span><br></pre></td></tr></table></figure>
+
+<p>如果单流只有 <code>5 Gbit/s</code>，八条流可以达到 <code>9.8 Gbit/s</code>，不能直接认定 DUT 的单流转发上限只有 5G。TCP 窗口、RTT、单核 CPU、IRQ、RSS 和网卡队列都可能限制单流结果。</p>
+<p>还可以使用 UDP 逐步提高发送速率，观察 <code>Lost/Total Datagrams</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">iperf3 -c 10.0.1.1 -u -b 8G -t 60</span><br><span class="line">iperf3 -c 10.0.1.1 -u -b 9G -t 60</span><br><span class="line">iperf3 -c 10.0.1.1 -u -b 10G -t 60</span><br></pre></td></tr></table></figure>
+
+<p><code>iperf3</code> 适合做基础连通性和 TCP&#x2F;UDP 吞吐检查，但它不是专业的 PPS 基准测试工具。</p>
+<h2 id="第二阶段：用流量发生器测试-PPS"><a href="#第二阶段：用流量发生器测试-PPS" class="headerlink" title="第二阶段：用流量发生器测试 PPS"></a>第二阶段：用流量发生器测试 PPS</h2><p>测试不同帧长、精确控制发包速率时，可以使用：</p>
+<ul>
+<li>TRex</li>
+<li>MoonGen</li>
+<li>Linux pktgen</li>
+<li>DPDK pktgen</li>
+<li>Ostinato</li>
+</ul>
+<p>按照 RFC 2544 的建议，Ethernet 至少覆盖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">64、128、256、512、1024、1280、1518B</span><br></pre></td></tr></table></figure>
+
+<p>对每种帧长逐步提高 offered load，寻找无丢包的最大速率。RFC 2544 对 Throughput 的定义，就是 DUT 收到的测试帧数量与发出的测试帧数量相等时，所能达到的最高速率。最终确认应使用不少于 60 秒的完整测试轮次。</p>
+<p>结果不能只写“跑到 10G”，而应记录：</p>
+<table>
+<thead>
+<tr>
+<th align="right">Frame Size</th>
+<th align="right">Offered Load</th>
+<th align="right">Throughput</th>
+<th align="right">PPS</th>
+<th align="right">Loss</th>
+<th align="right">Latency</th>
+<th align="right">DUT CPU</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">64B</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+</tr>
+<tr>
+<td align="right">128B</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+</tr>
+<tr>
+<td align="right">256B</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+</tr>
+<tr>
+<td align="right">512B</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+</tr>
+<tr>
+<td align="right">1024B</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+</tr>
+<tr>
+<td align="right">1280B</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+</tr>
+<tr>
+<td align="right">1518B</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+<td align="right">待测</td>
+</tr>
+</tbody></table>
+<h2 id="第三阶段：测负载下的时延"><a href="#第三阶段：测负载下的时延" class="headerlink" title="第三阶段：测负载下的时延"></a>第三阶段：测负载下的时延</h2><p>空载 <code>ping</code> 只能提供基础 RTT。更有价值的是比较不同负载下的时延：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">空载 → 50% → 90% → 接近最大无丢包吞吐</span><br></pre></td></tr></table></figure>
+
+<p>设备可能空载时延只有 <code>0.2 ms</code>，接近满载时却因为队列堆积增长到几十毫秒。此时即使吞吐看起来很高，实时业务体验也会明显下降。</p>
+<p>记录时至少应包含：</p>
+<ul>
+<li>平均时延；</li>
+<li>P50、P95、P99；</li>
+<li>最大时延；</li>
+<li>抖动；</li>
+<li>测量时的 offered load 和帧大小。</li>
+</ul>
+<h2 id="有状态设备还要测连接能力"><a href="#有状态设备还要测连接能力" class="headerlink" title="有状态设备还要测连接能力"></a>有状态设备还要测连接能力</h2><p>如果 DUT 开启了 NAT、conntrack、防火墙或负载均衡，单纯测试无状态转发不够，还应覆盖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">并发连接数</span><br><span class="line">每秒新建连接数（CPS）</span><br><span class="line">不同五元组数量</span><br><span class="line">短连接与长连接</span><br><span class="line">连接建立和释放过程</span><br></pre></td></tr></table></figure>
+
+<p><code>10GbE stateless routing</code> 与 <code>10GbE NAT + conntrack</code> 的处理成本不同，必须把测试模式、规则数量和功能开关写入报告。</p>
+<p>路由器还可以增加不同路由表规模下的数据面测试，并单独观察路由收敛、路由写入 FIB 和 Withdraw 等控制面性能。控制面与 Gbps、PPS 等数据面指标不能混为一谈。</p>
+<h2 id="一套可复现的验收矩阵"><a href="#一套可复现的验收矩阵" class="headerlink" title="一套可复现的验收矩阵"></a>一套可复现的验收矩阵</h2><p>实验室中可以按以下顺序执行：</p>
+<ol>
+<li>用 <code>iperf3</code> 验证正向、反向 TCP 基础吞吐；</li>
+<li>增加 TCP 并发流，排除单流与单核瓶颈；</li>
+<li>用 UDP 初步定位出现丢包的负载区间；</li>
+<li>用 TRex 等流量发生器测试 64～1518B 的 PPS；</li>
+<li>对每种帧长搜索 0 丢包的最大持续转发速率；</li>
+<li>在不同负载下记录时延、抖动和丢包；</li>
+<li>重复正向、反向、双向和多流测试；</li>
+<li>开启真实使用的 ACL、NAT、conntrack 等功能后重新测试；</li>
+<li>进行数小时长稳测试，观察 CPU、温度、内存和接口计数；</li>
+<li>保存拓扑、配置、软件版本、流量模型和原始结果。</li>
+</ol>
+<p>最后，报告至少要回答四个问题：</p>
+<ul>
+<li>哪种帧长、方向和流量模型？</li>
+<li>offered load 是多少，测试持续多久？</li>
+<li>最大无丢包吞吐和 PPS 分别是多少？</li>
+<li>瓶颈确实在 DUT，还是在流量发生器、网卡或测试方法？</li>
+</ul>
+<p>只有把这些边界写清楚，不同设备、不同版本和不同测试轮次之间的结果才真正可比较。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc2544.html">RFC 2544：Benchmarking Methodology for Network Interconnect Devices</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc6815.html">RFC 6815：Applicability Statement for RFC 2544</a></li>
+</ul>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%85%88%E6%98%8E%E7%A1%AE%E6%B5%8B%E8%AF%95%E5%AF%B9%E8%B1%A1%E5%92%8C%E6%8C%87%E6%A0%87"><span class="top-box-text">先明确测试对象和指标</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF%E7%BA%BF%E9%80%9F"><span class="top-box-text">什么是线速</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%B5%8B%E8%AF%95-64B-%E5%B0%8F%E5%8C%85"><span class="top-box-text">为什么要测试 64B 小包</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#Padding-%E6%98%AF%E4%BB%80%E4%B9%88"><span class="top-box-text">Padding 是什么</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%AE%A1%E7%AE%97-PPS-%E6%97%B6%E6%8C%89-84B"><span class="top-box-text">为什么计算 PPS 时按 84B</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%90%AD%E5%BB%BA%E9%9A%94%E7%A6%BB%E6%B5%8B%E8%AF%95%E6%8B%93%E6%89%91"><span class="top-box-text">搭建隔离测试拓扑</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E7%AC%AC%E4%B8%80%E9%98%B6%E6%AE%B5%EF%BC%9A%E7%94%A8-iperf3-%E6%A3%80%E6%9F%A5%E5%9F%BA%E6%9C%AC%E5%90%9E%E5%90%90"><span class="top-box-text">第一阶段：用 iperf3 检查基本吞吐</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E7%AC%AC%E4%BA%8C%E9%98%B6%E6%AE%B5%EF%BC%9A%E7%94%A8%E6%B5%81%E9%87%8F%E5%8F%91%E7%94%9F%E5%99%A8%E6%B5%8B%E8%AF%95-PPS"><span class="top-box-text">第二阶段：用流量发生器测试 PPS</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E7%AC%AC%E4%B8%89%E9%98%B6%E6%AE%B5%EF%BC%9A%E6%B5%8B%E8%B4%9F%E8%BD%BD%E4%B8%8B%E7%9A%84%E6%97%B6%E5%BB%B6"><span class="top-box-text">第三阶段：测负载下的时延</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%9C%89%E7%8A%B6%E6%80%81%E8%AE%BE%E5%A4%87%E8%BF%98%E8%A6%81%E6%B5%8B%E8%BF%9E%E6%8E%A5%E8%83%BD%E5%8A%9B"><span class="top-box-text">有状态设备还要测连接能力</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%B8%80%E5%A5%97%E5%8F%AF%E5%A4%8D%E7%8E%B0%E7%9A%84%E9%AA%8C%E6%94%B6%E7%9F%A9%E9%98%B5"><span class="top-box-text">一套可复现的验收矩阵</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="top-box-text">参考资料</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/07/06/macOS-Clash-TUN-%E5%90%8C%E7%BD%91%E6%AE%B5-ping-%E4%B8%8D%E9%80%9A%E6%8E%92%E6%9F%A5/">
+          <h3 class="post-title">
+            
+            下一篇：macOS + Clash TUN 导致同网段 ping 不通
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+
