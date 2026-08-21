@@ -1,6 +1,415 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Libvirt host-model 为什么不能直接解决 CPU 异构热迁移</title>
+    <url>/2026/08/20/Libvirt-host-model-%E4%B8%8D%E8%83%BD%E8%A7%A3%E5%86%B3-CPU-%E5%BC%82%E6%9E%84%E7%83%AD%E8%BF%81%E7%A7%BB/</url>
+    <content><![CDATA[<blockquote>
+<p>本文根据一次 Libvirt CPU 模型讨论和官方文档整理。示例用于说明设计方法，尚未在客户环境完成跨 CPU 热迁移实测。</p>
+</blockquote>
+<p>我之前认为，只要把虚拟机 CPU 配置成 <code>host-model</code>，Libvirt 就能屏蔽宿主机 CPU 差异，从而解决 CPU 异构问题。</p>
+<p>这个理解只对了一半：<code>host-model</code> 确实比 <code>host-passthrough</code> 更容易迁移，但它优化的是<strong>虚拟机在当前宿主机启动时所看到的 CPU</strong>，并不会自动计算整个集群都支持的公共 CPU 基线。</p>
+<p>如果客户真正需要的是在不同代 CPU 之间进行双向热迁移，核心问题不是“如何尽量接近当前宿主机”，而是“如何让虚拟机从启动开始就只使用所有目标宿主机都能提供的 CPU ABI”。</p>
+<span id="more"></span>
+
+<h2 id="先区分三种需求"><a href="#先区分三种需求" class="headerlink" title="先区分三种需求"></a>先区分三种需求</h2><p>“支持 CPU 异构”可能指三件不同的事：</p>
+<table>
+<thead>
+<tr>
+<th>需求</th>
+<th>典型场景</th>
+<th><code>host-model</code> 是否合适</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>异构节点都能创建虚拟机</td>
+<td>虚拟机关机后可以调度到另一代 CPU</td>
+<td>通常可以，但重启后 Guest 看到的 CPU 可能变化</td>
+</tr>
+<tr>
+<td>单向热迁移</td>
+<td>从旧 CPU 迁移到能力更强的新 CPU</td>
+<td>可能可行，必须预检查和实测</td>
+</tr>
+<tr>
+<td>双向跨代热迁移</td>
+<td>新旧 CPU 节点之间可以来回迁移</td>
+<td>不能只依赖 <code>host-model</code>，应设计公共 CPU 基线</td>
+</tr>
+</tbody></table>
+<p>客户说“跨 CPU”，还需要继续明确边界：</p>
+<ul>
+<li>是同厂商不同代，例如 Intel Broadwell 与 Skylake；</li>
+<li>还是 Intel 与 AMD 跨厂商；</li>
+<li>只要求旧节点迁往新节点，还是必须双向迁移；</li>
+<li>是热迁移，还是允许关机后冷迁移；</li>
+<li>迁移池中具体包含哪些宿主机，而不是泛指整个集群。</li>
+</ul>
+<p>这些答案会直接改变 CPU 模型设计。</p>
+<h2 id="Libvirt-的四种-CPU-模式"><a href="#Libvirt-的四种-CPU-模式" class="headerlink" title="Libvirt 的四种 CPU 模式"></a>Libvirt 的四种 CPU 模式</h2><table>
+<thead>
+<tr>
+<th>CPU 模式</th>
+<th>Guest 看到的 CPU</th>
+<th>性能与特性</th>
+<th>迁移边界</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>host-passthrough</code></td>
+<td>尽可能等同宿主机</td>
+<td>最接近物理 CPU</td>
+<td>依赖硬件、QEMU、微码和配置高度一致</td>
+</tr>
+<tr>
+<td><code>host-model</code></td>
+<td>启动时选择最接近当前宿主机的命名模型，再补充特性</td>
+<td>接近宿主机</td>
+<td>适合 CPU 基本同构的迁移池，不保证跨代双向迁移</td>
+</tr>
+<tr>
+<td><code>custom</code></td>
+<td>显式指定命名模型和 CPU Features</td>
+<td>会舍弃部分新 CPU 特性</td>
+<td>可固定 Guest CPU ABI，适合跨代迁移池</td>
+</tr>
+<tr>
+<td><code>maximum</code></td>
+<td>暴露 Hypervisor 能提供的最大特性集</td>
+<td>特性最多</td>
+<td>不适合追求迁移兼容性的 KVM Guest</td>
+</tr>
+</tbody></table>
+<p><code>host-passthrough</code> 的目标是“像宿主机”，<code>host-model</code> 的目标是“尽量接近宿主机且更可迁移”，而 <code>custom</code> 的目标是“无论落在哪台宿主机，都向 Guest 提供相同的 CPU 契约”。</p>
+<p>这三者解决的不是同一个问题。</p>
+<h2 id="host-model-实际做了什么"><a href="#host-model-实际做了什么" class="headerlink" title="host-model 实际做了什么"></a>host-model 实际做了什么</h2><p>下面的 XML 看起来没有指定具体 CPU：</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;host-model&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>虚拟机启动前，Libvirt 会根据当前宿主机的 Domain Capabilities，选择一个最接近宿主机的 QEMU 命名 CPU 模型，并补充必要的 CPU Features。</p>
+<p>假设两台宿主机的能力如下：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Host A：支持 f1、f2、f3、f4</span><br><span class="line">Host B：支持 f1、f2、f3</span><br></pre></td></tr></table></figure>
+
+<p>虚拟机在 Host A 启动后，可能看到：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Guest CPU：f1、f2、f3、f4</span><br></pre></td></tr></table></figure>
+
+<p>热迁移时，Libvirt 会把这台运行中虚拟机的完整 CPU 定义传给 Host B。为了保证 Guest 在迁移前后看到相同硬件，Host B 也必须提供 <code>f4</code>。如果它做不到，迁移预检查或恢复阶段就会失败。</p>
+<p>反过来，虚拟机如果最初在 Host B 启动，只暴露 <code>f1、f2、f3</code>，迁移到能力更强的 Host A 往往更容易成功。因此 <code>host-model</code> 的迁移兼容性可能具有方向性：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">旧 CPU → 新 CPU：可能成功</span><br><span class="line">新 CPU → 旧 CPU：可能失败</span><br></pre></td></tr></table></figure>
+
+<p>这里的“可能”很重要。CPU 不是热迁移的唯一约束，QEMU 版本、Machine Type、内核、微码、设备模型、存储和网络也要兼容。</p>
+<h2 id="最容易混淆的地方"><a href="#最容易混淆的地方" class="headerlink" title="最容易混淆的地方"></a>最容易混淆的地方</h2><h3 id="同一份-host-model-XML，不等于同一个-Guest-CPU"><a href="#同一份-host-model-XML，不等于同一个-Guest-CPU" class="headerlink" title="同一份 host-model XML，不等于同一个 Guest CPU"></a>同一份 host-model XML，不等于同一个 Guest CPU</h3><p>相同的持久化 XML：</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;host-model&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>在不同宿主机冷启动时，可能展开成不同的有效 CPU。也就是说，它保证的是“在当前节点尽可能合理”，而不是“整个迁移池的 CPU ABI 永远一致”。</p>
+<p>运行中的虚拟机热迁移后，Guest 仍会保持迁移前的 CPU 定义；但关机并在目标宿主机重新启动后，Libvirt 会重新计算 <code>host-model</code>，Guest 可能看到更多或更少的 CPU Features。</p>
+<h3 id="migratable-x3D-’on’-不是异构迁移开关"><a href="#migratable-x3D-’on’-不是异构迁移开关" class="headerlink" title="migratable&#x3D;’on’ 不是异构迁移开关"></a>migratable&#x3D;’on’ 不是异构迁移开关</h3><p>例如：</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;host-passthrough&#x27;</span> <span class="attr">migratable</span>=<span class="string">&#x27;on&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>migratable=&#39;on&#39;</code> 只会尝试移除已知会阻塞迁移的 CPU Features，并不会自动求出两台异构宿主机的公共特性集。Libvirt 官方文档明确提醒：即使开启它，<code>host-passthrough</code> 在宿主机不一致时仍然危险。</p>
+<h3 id="CPU-兼容不等于整机可热迁移"><a href="#CPU-兼容不等于整机可热迁移" class="headerlink" title="CPU 兼容不等于整机可热迁移"></a>CPU 兼容不等于整机可热迁移</h3><p>CPU 基线通过，只能说明 CPU 这一层满足条件。完整热迁移还依赖：</p>
+<ul>
+<li>源、目标使用兼容的 QEMU 版本和相同的版本化 Machine Type；</li>
+<li>Guest 设备模型及其 Features 一致；</li>
+<li>磁盘、网络和迁移通道满足迁移方式要求；</li>
+<li>NUMA、CPU Pinning、Huge Page、VFIO 等资源能在目标节点重建；</li>
+<li>目标宿主机内核、KVM、微码和安全缓解特性满足 Guest CPU 定义。</li>
+</ul>
+<p>因此，不能把“CPU Compare 通过”写成“热迁移一定成功”。</p>
+<h2 id="跨代双向热迁移：固定公共-CPU-基线"><a href="#跨代双向热迁移：固定公共-CPU-基线" class="headerlink" title="跨代双向热迁移：固定公共 CPU 基线"></a>跨代双向热迁移：固定公共 CPU 基线</h2><p>如果迁移池中包含多代 CPU，并要求双向热迁移，更稳妥的设计是：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Host A CPU Features ─┐</span><br><span class="line">                     ├─ 求交集 ─→ Cluster CPU Baseline ─→ Guest CPU ABI</span><br><span class="line">Host B CPU Features ─┤</span><br><span class="line">Host C CPU Features ─┘</span><br></pre></td></tr></table></figure>
+
+<p>QEMU 的建议也是：在混合 CPU 型号的迁移池中，选择<strong>所有目标宿主机都支持的最新命名 CPU 模型</strong>。</p>
+<h3 id="1-固定迁移域"><a href="#1-固定迁移域" class="headerlink" title="1. 固定迁移域"></a>1. 固定迁移域</h3><p>先列出真正需要互相热迁移的宿主机，不要把所有计算节点默认放进同一个兼容域。跨厂商 CPU 的边界更复杂，不能只看少量相同 Flags 就假设兼容；更稳妥的做法是拆分迁移域，再分别验证。</p>
+<h3 id="2-收集能力并计算-Baseline"><a href="#2-收集能力并计算-Baseline" class="headerlink" title="2. 收集能力并计算 Baseline"></a>2. 收集能力并计算 Baseline</h3><p>可以先在各宿主机收集能力：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">virsh capabilities &gt; host-a.xml</span><br><span class="line">virsh capabilities &gt; host-b.xml</span><br></pre></td></tr></table></figure>
+
+<p>将多个宿主机的 Capabilities 汇总到一个输入文件后，计算可迁移基线：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">virsh cpu-baseline hosts.xml --migratable</span><br></pre></td></tr></table></figure>
+
+<p>较新的 Libvirt 还提供 <code>hypervisor-cpu-baseline</code>。它会结合指定 QEMU、架构和 Machine Type 的实际能力计算基线，比只比较物理 CPU 更贴近虚拟机最终能获得的 CPU。生产设计应优先使用 Domain Capabilities 和该命令，并确保所有节点使用相同参数。</p>
+<h3 id="3-把结果固化为-custom-CPU"><a href="#3-把结果固化为-custom-CPU" class="headerlink" title="3. 把结果固化为 custom CPU"></a>3. 把结果固化为 custom CPU</h3><p>不要为异构迁移池保留动态 <code>host-model</code>，而是将计算和验证后的基线固化到虚拟机模板。例如：</p>
+<figure class="highlight xml"><table><tr><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;custom&#x27;</span> <span class="attr">match</span>=<span class="string">&#x27;exact&#x27;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">model</span> <span class="attr">fallback</span>=<span class="string">&#x27;forbid&#x27;</span>&gt;</span>Broadwell-v4<span class="tag">&lt;/<span class="name">model</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">feature</span> <span class="attr">policy</span>=<span class="string">&#x27;require&#x27;</span> <span class="attr">name</span>=<span class="string">&#x27;pcid&#x27;</span>/&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">cpu</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>这只是结构示例，<code>Broadwell-v4</code> 和 <code>pcid</code> 不能直接套用。真实模型与 Features 必须来自迁移池的能力交集，并结合 Guest 安全、性能和业务需求评审。</p>
+<p><code>fallback=&#39;forbid&#39;</code> 可以避免 Hypervisor 静默退回到另一个模型。代价是目标宿主机无法严格提供该 CPU 时，虚拟机会直接启动失败；这正是生产环境需要的失败方式。</p>
+<h3 id="4-在每台目标宿主机做预检查"><a href="#4-在每台目标宿主机做预检查" class="headerlink" title="4. 在每台目标宿主机做预检查"></a>4. 在每台目标宿主机做预检查</h3><p>至少验证：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">virsh hypervisor-cpu-compare baseline.xml \</span><br><span class="line">  kvm /usr/bin/qemu-system-x86_64 x86_64 &lt;machine-type&gt; --error</span><br></pre></td></tr></table></figure>
+
+<p>QEMU 路径和 Machine Type 以实际 Domain XML 为准。还应比较各节点的：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">virsh version</span><br><span class="line">qemu-system-x86_64 --version</span><br><span class="line"><span class="built_in">uname</span> -r</span><br><span class="line">virsh domcapabilities kvm /usr/bin/qemu-system-x86_64 x86_64 &lt;machine-type&gt;</span><br></pre></td></tr></table></figure>
+
+<p>版本号相同也不是充分条件，还要保证发行版补丁、微码和关键配置的兼容策略一致。</p>
+<h2 id="验收矩阵"><a href="#验收矩阵" class="headerlink" title="验收矩阵"></a>验收矩阵</h2><p>不要只做一次“迁移命令返回成功”。最小验收应覆盖：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>预期结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Host A → Host B 热迁移</td>
+<td>迁移成功，业务连续</td>
+</tr>
+<tr>
+<td>Host B → Host A 热迁移</td>
+<td>迁移成功，业务连续</td>
+</tr>
+<tr>
+<td>迁移前后检查 Guest CPU</td>
+<td>Model、Flags 和 ABI 保持一致</td>
+</tr>
+<tr>
+<td>CPU 压力下迁移</td>
+<td>业务计算结果正确，无 Guest Crash 或 Hang</td>
+</tr>
+<tr>
+<td>目标宿主机冷启动</td>
+<td>Guest CPU 仍与模板定义一致</td>
+</tr>
+<tr>
+<td>迁移失败回滚</td>
+<td>源端虚拟机可继续运行，状态明确</td>
+</tr>
+<tr>
+<td>宿主机升级后回归</td>
+<td>双向迁移矩阵重新通过</td>
+</tr>
+</tbody></table>
+<p>迁移前后可在 Guest 中记录：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">lscpu</span><br><span class="line">grep -m1 <span class="string">&#x27;^flags&#x27;</span> /proc/cpuinfo</span><br></pre></td></tr></table></figure>
+
+<p>如果使用了特定指令集，还应运行能实际执行这些指令的业务或测试程序。只比较 Flags，不能证明应用状态和设备状态都正确迁移。</p>
+<h2 id="最终结论"><a href="#最终结论" class="headerlink" title="最终结论"></a>最终结论</h2><p>我原来的判断是：</p>
+<blockquote>
+<p><code>host-model</code> 可以屏蔽 CPU 差异，所以能解决 CPU 异构。</p>
+</blockquote>
+<p>更准确的结论应该是：</p>
+<blockquote>
+<p><code>host-model</code> 能在当前宿主机上生成接近物理 CPU、相对易迁移的 Guest CPU，适合 CPU 基本同构的资源池；它不是集群级公共 CPU 基线，也不保证不同代 CPU 之间可以双向热迁移。</p>
+</blockquote>
+<p>如果客户只是希望异构节点都能运行虚拟机，<code>host-model</code> 可能已经足够；如果客户要求跨代双向热迁移，应为明确的迁移域计算公共 CPU Baseline，固化为 <code>custom</code> CPU，并连同 Machine Type、QEMU、内核、微码和设备模型一起完成双向实测。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a href="https://libvirt.org/formatdomain.html#cpu-model-and-topology">Libvirt Domain XML：CPU model and topology</a></li>
+<li><a href="https://libvirt.org/manpages/virsh.html#cpu-baseline">Libvirt virsh：cpu-baseline 与 hypervisor-cpu-baseline</a></li>
+<li><a href="https://www.qemu.org/docs/master/system/qemu-cpu-models.html">QEMU&#x2F;KVM CPU model configuration</a></li>
+<li><a href="https://www.qemu.org/docs/master/devel/migration/compatibility.html">QEMU migration backwards compatibility</a></li>
+<li><a href="https://docs.openstack.org/nova/latest/admin/cpu-models.html">OpenStack Nova：CPU models</a></li>
+</ul>
+]]></content>
+      <categories>
+        <category>虚拟化</category>
+      </categories>
+      <tags>
+        <tag>Libvirt</tag>
+        <tag>QEMU</tag>
+        <tag>KVM</tag>
+        <tag>Live Migration</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>containerd 百万级 nofile 如何拖慢 Python 2 子进程</title>
+    <url>/2026/08/20/containerd-%E7%99%BE%E4%B8%87%E7%BA%A7-nofile-%E5%A6%82%E4%BD%95%E6%8B%96%E6%85%A2-Python-2-%E5%AD%90%E8%BF%9B%E7%A8%8B/</url>
+    <content><![CDATA[<blockquote>
+<p>本文根据一次真实的容器服务性能排障整理。</p>
+</blockquote>
+<p>一个原本几秒即可完成的轻量命令，在容器化后 Python 2 服务中每次都需要约 <code>0.6s</code>。问题不在 CPU、内存或命令本身，而是 containerd 设置的百万级 <code>nofile</code> 被容器继承，触发了 Python 2 的 <code>Popen(close_fds=True)</code> 性能问题：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">containerd：LimitNOFILE=1048576</span><br><span class="line">  → 容器中的 Python 2 服务继承该限制</span><br><span class="line">  → 每次 Popen 增加约 0.5 秒固定开销</span><br><span class="line">  → 大量串行命令累积为分钟级延迟</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="问题现象与影响"><a href="#问题现象与影响" class="headerlink" title="问题现象与影响"></a>问题现象与影响</h2><p>一次业务任务从开始到完成耗时约 243 秒：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">14:40:17 开始</span><br><span class="line">14:44:21 完成</span><br><span class="line">总计约 243 秒</span><br></pre></td></tr></table></figure>
+
+<p>服务在此期间串行执行了约 255 条外部命令。<code>grep</code>、<code>cat</code>、<code>mkdir</code>、<code>ps</code>、<code>sed</code> 等轻量命令普遍耗时 <code>0.62～0.66s</code>，真正有工作负载的命令反而没有明显异常：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th align="right">耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>文件系统调整</td>
+<td align="right"><code>6.141s</code></td>
+</tr>
+<tr>
+<td>启动一个外部进程</td>
+<td align="right"><code>1.578s</code></td>
+</tr>
+<tr>
+<td>一次外部资源操作</td>
+<td align="right"><code>0.681s</code></td>
+</tr>
+<tr>
+<td><code>grep</code>、<code>cat</code> 等轻量命令</td>
+<td align="right">多数为 <code>0.62～0.66s</code></td>
+</tr>
+</tbody></table>
+<p>不同轻量命令具有相近的固定耗时，说明瓶颈不在命令本身，而在它们共享的进程启动路径。</p>
+<h2 id="根因：百万级-nofile-遇到-Python-2-close-fds"><a href="#根因：百万级-nofile-遇到-Python-2-close-fds" class="headerlink" title="根因：百万级 nofile 遇到 Python 2 close_fds"></a>根因：百万级 nofile 遇到 Python 2 close_fds</h2><p>服务通过 Python 2 启动外部命令：</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line">subprocess.Popen(..., close_fds=<span class="literal">True</span>)</span><br></pre></td></tr></table></figure>
+
+<p><code>close_fds=True</code> 表示创建子进程时，关闭不应被继承的文件描述符（FD），避免数据库连接、Socket、Pipe 等资源泄漏给子进程。这个安全语义不应被直接取消。</p>
+<p>问题在于，Python 2 的旧实现会根据 <code>RLIMIT_NOFILE</code> 上限处理 FD。即使服务实际只打开约 127 个 FD，只要上限为 <code>1048576</code>，每次 <code>Popen</code> 仍可能处理从 <code>3</code> 到 <code>1048576</code> 的巨大范围。</p>
+<p>现场继续追溯发现，宿主机的 containerd systemd Unit 显式设置了：</p>
+<figure class="highlight ini"><table><tr><td class="code"><pre><span class="line"><span class="section">[Service]</span></span><br><span class="line"><span class="attr">LimitNOFILE</span>=<span class="number">1048576</span></span><br></pre></td></tr></table></figure>
+
+<p>容器没有覆盖该值，因此形成完整的继承链：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">systemd</span><br><span class="line">  └─ containerd</span><br><span class="line">      └─ containerd-shim</span><br><span class="line">          └─ 容器进程</span><br><span class="line">              └─ Python 2 服务</span><br></pre></td></tr></table></figure>
+
+<p>这不是 Kubernetes 的 CPU、内存 <code>resources.limits</code>，而是 Linux 进程级资源限制。</p>
+<h2 id="现场证据：最小实验闭合因果链"><a href="#现场证据：最小实验闭合因果链" class="headerlink" title="现场证据：最小实验闭合因果链"></a>现场证据：最小实验闭合因果链</h2><p>宿主机服务与 Pod 服务的限制不同：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">宿主机服务：Max open files =   65535</span><br><span class="line">Pod 服务：   Max open files = 1048576</span><br></pre></td></tr></table></figure>
+
+<p>使用相同 Python 2 运行最小 <code>Popen</code> 测试，结果如下：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th align="right">单次耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pod 内直接执行 Bash</td>
+<td align="right"><code>0.00s</code></td>
+</tr>
+<tr>
+<td><code>nofile=1048576</code>，<code>close_fds=True</code></td>
+<td align="right"><code>581ms</code></td>
+</tr>
+<tr>
+<td><code>nofile=1048576</code>，<code>close_fds=False</code></td>
+<td align="right"><code>1.71ms</code></td>
+</tr>
+<tr>
+<td>临时限制 <code>nofile=65535</code>，<code>close_fds=True</code></td>
+<td align="right"><code>38.5ms</code></td>
+</tr>
+</tbody></table>
+<p>将 <code>nofile</code> 临时调整为 <code>65535</code> 后，在保持 <code>close_fds=True</code> 的情况下，<code>Popen</code> 从 <code>581ms</code> 降到 <code>38.5ms</code>，性能提升约 15 倍。</p>
+<p>按 250 次外部命令估算，百万级 <code>nofile</code> 带来的额外耗时约为：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">250 × (581ms - 38.5ms) ≈ 136 秒</span><br></pre></td></tr></table></figure>
+
+<p>该结果与现场多出的两分多钟基本吻合。</p>
+<p>同时，Pod 的资源数据排除了常见竞争假设：</p>
+<table>
+<thead>
+<tr>
+<th>检查项</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CPU Limit</td>
+<td>4 核</td>
+</tr>
+<tr>
+<td>CPU Throttling</td>
+<td><code>nr_throttled=0</code>、<code>throttled_time=0</code></td>
+</tr>
+<tr>
+<td>内存使用</td>
+<td>约 <code>122Mi / 8Gi</code></td>
+</tr>
+<tr>
+<td>内存触限</td>
+<td><code>failcnt=0</code></td>
+</tr>
+<tr>
+<td>容器重启</td>
+<td>0 次</td>
+</tr>
+</tbody></table>
+<p>因此，问题不是 Pod 缺少 CPU 或内存，也不是容器内所有进程启动都慢，而是 Python 2、<code>close_fds=True</code> 与百万级 <code>nofile</code> 共同触发的固定开销。</p>
+<h2 id="如何快速定位同类问题"><a href="#如何快速定位同类问题" class="headerlink" title="如何快速定位同类问题"></a>如何快速定位同类问题</h2><p>首先读取真实服务进程的限制，不要只查看当前 Shell 的 <code>ulimit</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/&lt;service-pid&gt;/limits | grep <span class="string">&#x27;Max open files&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>再对比直接执行与 Python 2 的 <code>Popen</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">/usr/bin/time -p /bin/true</span><br><span class="line"></span><br><span class="line">/usr/bin/python -m timeit -n 1 -r 5 \</span><br><span class="line">  <span class="string">&#x27;import subprocess; subprocess.Popen(&quot;true&quot;, close_fds=True).communicate()&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>最后检查 containerd 的限制来源：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">systemctl show containerd \</span><br><span class="line">  -p LimitNOFILE \</span><br><span class="line">  -p FragmentPath \</span><br><span class="line">  -p DropInPaths</span><br></pre></td></tr></table></figure>
+
+<p>如果 containerd、shim、容器入口进程和服务进程的 <code>/proc/&lt;pid&gt;/limits</code> 数值一致，即可确认继承关系。</p>
+<h2 id="修复方案"><a href="#修复方案" class="headerlink" title="修复方案"></a>修复方案</h2><h3 id="长期修复：跟随-containerd-2-0-官方-Unit"><a href="#长期修复：跟随-containerd-2-0-官方-Unit" class="headerlink" title="长期修复：跟随 containerd 2.0 官方 Unit"></a>长期修复：跟随 containerd 2.0 官方 Unit</h3><p><a href="https://github.com/containerd/containerd/blob/main/docs/containerd-2.0.md">containerd 2.0 官方文档</a>明确说明，参考 systemd Unit 已移除显式 <code>LimitNOFILE</code>，因为 containerd 的限制会被容器继承。</p>
+<p>长期应评估升级到 containerd 2.0，或在当前版本中参考官方 Unit，移除 <code>containerd.service</code> 及其 Drop-In 中显式设置的：</p>
+<figure class="highlight ini"><table><tr><td class="code"><pre><span class="line"><span class="attr">LimitNOFILE</span>=<span class="number">1048576</span></span><br></pre></td></tr></table></figure>
+
+<p>让 containerd 使用经过评估的 systemd 默认限制，避免百万级 <code>nofile</code> 继续传递给所有容器。</p>
+<p>该变更影响节点上的全部容器，不能直接全量修改。应先在测试节点验证 FD 容量、容器继承值和运行时稳定性，再通过维护窗口逐节点发布，并保留原 Unit 作为回滚配置。</p>
+<h3 id="短期止血：仅限制受影响的服务"><a href="#短期止血：仅限制受影响的服务" class="headerlink" title="短期止血：仅限制受影响的服务"></a>短期止血：仅限制受影响的服务</h3><p>无法立即升级 containerd 或调整全局 Unit 时，可以只调整受影响服务入口进程的 <code>RLIMIT_NOFILE</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">prlimit --nofile=65535:65535 -- \</span><br><span class="line">  /usr/bin/python \</span><br><span class="line">  /path/to/service.py \</span><br><span class="line">  -c /path/to/service.yaml</span><br></pre></td></tr></table></figure>
+
+<p><code>65535</code> 不是适用于所有服务的固定答案。修改前应统计单并发和峰值并发下的实际 FD 数，并保留足够余量。</p>
+<p>不建议采用以下方案：</p>
+<ul>
+<li>设置 <code>close_fds=False</code>：可能向子进程泄漏数据库连接、Socket 等资源；</li>
+<li>未做容量评估、灰度和回滚准备就修改所有节点的 containerd Unit；</li>
+<li>只增加 CPU 或内存：无法消除按 FD 上限处理的固定开销。</li>
+</ul>
+<p>同时应推进 Python 运行时升级，减少对 Python 2 旧子进程实现的依赖。</p>
+<h2 id="验收矩阵"><a href="#验收矩阵" class="headerlink" title="验收矩阵"></a>验收矩阵</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>验收标准</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程限制</td>
+<td>containerd 与应用服务的 soft&#x2F;hard <code>nofile</code> 符合目标设计</td>
+</tr>
+<tr>
+<td>继承关系</td>
+<td>新建容器不再继承未经评估的百万级 <code>nofile</code></td>
+</tr>
+<tr>
+<td>微基准</td>
+<td><code>Popen(close_fds=True)</code> 从约 <code>581ms</code> 降至几十毫秒</td>
+</tr>
+<tr>
+<td>FD 容量</td>
+<td>峰值 FD 数显著低于新上限</td>
+</tr>
+<tr>
+<td>单业务任务</td>
+<td>相同输入、相同节点的总耗时明显下降</td>
+</tr>
+<tr>
+<td>并发任务</td>
+<td>无新的排队、锁竞争或超时</td>
+</tr>
+<tr>
+<td>错误监控</td>
+<td>无 <code>Too many open files</code></td>
+</tr>
+<tr>
+<td>业务结果</td>
+<td>任务结果和终态符合预期</td>
+</tr>
+<tr>
+<td>运行时</td>
+<td>containerd 与现有容器运行稳定</td>
+</tr>
+<tr>
+<td>回滚</td>
+<td>可恢复原 systemd Unit 和服务启动配置</td>
+</tr>
+</tbody></table>
+<p>本次现场已验证临时 <code>prlimit</code> 可以将 <code>Popen</code> 降至约 <code>38.5ms</code>，确认了根因和短期修复方向；尚未升级 containerd、修改永久 Unit，也未完成修复后的完整业务回归。因此，当前结论不能表述为已经完成生产修复。</p>
+]]></content>
+      <categories>
+        <category>云计算</category>
+      </categories>
+      <tags>
+        <tag>Linux</tag>
+        <tag>Kubernetes</tag>
+        <tag>Python</tag>
+        <tag>containerd</tag>
+        <tag>性能排查</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>如何测试网络设备性能：从吞吐、PPS 到 RFC 2544</title>
     <url>/2026/08/19/%E5%A6%82%E4%BD%95%E6%B5%8B%E8%AF%95%E7%BD%91%E7%BB%9C%E8%AE%BE%E5%A4%87%E6%80%A7%E8%83%BD%EF%BC%9A%E4%BB%8E%E5%90%9E%E5%90%90%E3%80%81PPS%E5%88%B0RFC-2544/</url>
     <content><![CDATA[<blockquote>
@@ -1369,8 +1778,8 @@
         <category>工具箱</category>
       </categories>
       <tags>
-        <tag>IPTV</tag>
         <tag>Wireshark</tag>
+        <tag>IPTV</tag>
         <tag>ImmortalWrt</tag>
         <tag>rtp2httpd</tag>
         <tag>M3U</tag>
@@ -1613,8 +2022,8 @@
       </categories>
       <tags>
         <tag>Network</tag>
-        <tag>Tailscale</tag>
         <tag>iptables</tag>
+        <tag>Tailscale</tag>
       </tags>
   </entry>
   <entry>

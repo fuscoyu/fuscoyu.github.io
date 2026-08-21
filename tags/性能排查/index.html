@@ -78,7 +78,7 @@
 
   <div class="current-tag-container">
     <h2 class="title">
-      <i class="icon icon-pricetags-outline"></i> iptables
+      <i class="icon icon-pricetags-outline"></i> 性能排查
     </h2>
   </div>
 
@@ -86,36 +86,51 @@
 
 <section class="post-item">
     <div class="content">
-      <a href="/2026/06/26/VPC%E5%86%85VM%E9%80%9A%E8%BF%87Proxy%E8%AE%BF%E9%97%AETailscale%E7%BD%91%E6%AE%B5/">
-        <h2 class="post-title">VPC 内 VM 通过 Proxy 访问 Tailscale 网段</h2>
+      <a href="/2026/08/20/containerd-%E7%99%BE%E4%B8%87%E7%BA%A7-nofile-%E5%A6%82%E4%BD%95%E6%8B%96%E6%85%A2-Python-2-%E5%AD%90%E8%BF%9B%E7%A8%8B/">
+        <h2 class="post-title">containerd 百万级 nofile 如何拖慢 Python 2 子进程</h2>
       </a>
-      <a href="/2026/06/26/VPC%E5%86%85VM%E9%80%9A%E8%BF%87Proxy%E8%AE%BF%E9%97%AETailscale%E7%BD%91%E6%AE%B5/">
+      <a href="/2026/08/20/containerd-%E7%99%BE%E4%B8%87%E7%BA%A7-nofile-%E5%A6%82%E4%BD%95%E6%8B%96%E6%85%A2-Python-2-%E5%AD%90%E8%BF%9B%E7%A8%8B/">
           <div class="post-abstract">
             
-			    有时 VPC 里只有一台机器适合安装 Tailscale，但其他 VM 也需要访问 Tailscale 后面的远端内网段。这个场景可以把这台机器当成一个 proxy 节点：VPC 内机器把目标网段路由到 proxy，proxy 再通过 ta
+			    
+本文根据一次真实的容器服务性能排障整理。
+
+一个原本几秒即可完成的轻量命令，在容器化后 Python 2 服务中每次都需要约 0.6s。问题不在 CPU、内存或命令本身，而是 containerd 设置的百万级 nofile 被容器继承，
             
           </div>
       </a>
       <div class="post-info">
-        <span><i class="icon icon-calendar-outline"></i> 2026-06-26</span>
+        <span><i class="icon icon-calendar-outline"></i> 2026-08-21</span>
         
           <span>
             <i class="icon icon-pricetags-outline"></i>
             
 
-                Network
+                Linux
                 
                   ，
                 
             
 
-                iptables
+                Kubernetes
                 
                   ，
                 
             
 
-                Tailscale
+                Python
+                
+                  ，
+                
+            
+
+                containerd
+                
+                  ，
+                
+            
+
+                性能排查
                 
             
           </span>

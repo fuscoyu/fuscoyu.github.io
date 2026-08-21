@@ -78,7 +78,7 @@
 
   <div class="current-tag-container">
     <h2 class="title">
-      <i class="icon icon-pricetags-outline"></i> iptables
+      <i class="icon icon-pricetags-outline"></i> KVM
     </h2>
   </div>
 
@@ -86,36 +86,45 @@
 
 <section class="post-item">
     <div class="content">
-      <a href="/2026/06/26/VPC%E5%86%85VM%E9%80%9A%E8%BF%87Proxy%E8%AE%BF%E9%97%AETailscale%E7%BD%91%E6%AE%B5/">
-        <h2 class="post-title">VPC 内 VM 通过 Proxy 访问 Tailscale 网段</h2>
+      <a href="/2026/08/20/Libvirt-host-model-%E4%B8%8D%E8%83%BD%E8%A7%A3%E5%86%B3-CPU-%E5%BC%82%E6%9E%84%E7%83%AD%E8%BF%81%E7%A7%BB/">
+        <h2 class="post-title">Libvirt host-model 为什么不能直接解决 CPU 异构热迁移</h2>
       </a>
-      <a href="/2026/06/26/VPC%E5%86%85VM%E9%80%9A%E8%BF%87Proxy%E8%AE%BF%E9%97%AETailscale%E7%BD%91%E6%AE%B5/">
+      <a href="/2026/08/20/Libvirt-host-model-%E4%B8%8D%E8%83%BD%E8%A7%A3%E5%86%B3-CPU-%E5%BC%82%E6%9E%84%E7%83%AD%E8%BF%81%E7%A7%BB/">
           <div class="post-abstract">
             
-			    有时 VPC 里只有一台机器适合安装 Tailscale，但其他 VM 也需要访问 Tailscale 后面的远端内网段。这个场景可以把这台机器当成一个 proxy 节点：VPC 内机器把目标网段路由到 proxy，proxy 再通过 ta
+			    
+本文根据一次 Libvirt CPU 模型讨论和官方文档整理。示例用于说明设计方法，尚未在客户环境完成跨 CPU 热迁移实测。
+
+我之前认为，只要把虚拟机 CPU 配置成 host-model，Libvirt 就能屏蔽宿主机 CPU 差异
             
           </div>
       </a>
       <div class="post-info">
-        <span><i class="icon icon-calendar-outline"></i> 2026-06-26</span>
+        <span><i class="icon icon-calendar-outline"></i> 2026-08-21</span>
         
           <span>
             <i class="icon icon-pricetags-outline"></i>
             
 
-                Network
+                Libvirt
                 
                   ，
                 
             
 
-                iptables
+                QEMU
                 
                   ，
                 
             
 
-                Tailscale
+                KVM
+                
+                  ，
+                
+            
+
+                Live Migration
                 
             
           </span>

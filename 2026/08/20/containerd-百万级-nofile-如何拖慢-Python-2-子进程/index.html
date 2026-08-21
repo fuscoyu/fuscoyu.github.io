@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>containerd 百万级 nofile 如何拖慢 Python 2 子进程</title>
+<meta name="keywords" content="containerd 百万级 nofile 如何拖慢 Python 2 子进程, fuscoyu&#39;s Blog">
+<meta name="description" content="
+本文根据一次真实的容器服务性能排障整理。
+
+一个原本几秒即可完成的轻量命令，在容器化后 Python 2 服务中每次都需要约 0.6s。问题不在 CPU、内存或命令本身，而是 containerd 设置的百万级 nofile 被容器继承，">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="containerd 百万级 nofile 如何拖慢 Python 2 子进程">
+<meta property="og:description" content="
+本文根据一次真实的容器服务性能排障整理。
+
+一个原本几秒即可完成的轻量命令，在容器化后 Python 2 服务中每次都需要约 0.6s。问题不在 CPU、内存或命令本身，而是 containerd 设置的百万级 nofile 被容器继承，">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">containerd 百万级 nofile 如何拖慢 Python 2 子进程</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-08-21</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Linux/">
+              Linux
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Kubernetes/">
+              Kubernetes
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Python/">
+              Python
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/containerd/">
+              containerd
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/%E6%80%A7%E8%83%BD%E6%8E%92%E6%9F%A5/">
+              性能排查
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <blockquote>
+<p>本文根据一次真实的容器服务性能排障整理。</p>
+</blockquote>
+<p>一个原本几秒即可完成的轻量命令，在容器化后 Python 2 服务中每次都需要约 <code>0.6s</code>。问题不在 CPU、内存或命令本身，而是 containerd 设置的百万级 <code>nofile</code> 被容器继承，触发了 Python 2 的 <code>Popen(close_fds=True)</code> 性能问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">containerd：LimitNOFILE=1048576</span><br><span class="line">  → 容器中的 Python 2 服务继承该限制</span><br><span class="line">  → 每次 Popen 增加约 0.5 秒固定开销</span><br><span class="line">  → 大量串行命令累积为分钟级延迟</span><br></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="问题现象与影响"><a href="#问题现象与影响" class="headerlink" title="问题现象与影响"></a>问题现象与影响</h2><p>一次业务任务从开始到完成耗时约 243 秒：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">14:40:17 开始</span><br><span class="line">14:44:21 完成</span><br><span class="line">总计约 243 秒</span><br></pre></td></tr></table></figure>
+
+<p>服务在此期间串行执行了约 255 条外部命令。<code>grep</code>、<code>cat</code>、<code>mkdir</code>、<code>ps</code>、<code>sed</code> 等轻量命令普遍耗时 <code>0.62～0.66s</code>，真正有工作负载的命令反而没有明显异常：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th align="right">耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>文件系统调整</td>
+<td align="right"><code>6.141s</code></td>
+</tr>
+<tr>
+<td>启动一个外部进程</td>
+<td align="right"><code>1.578s</code></td>
+</tr>
+<tr>
+<td>一次外部资源操作</td>
+<td align="right"><code>0.681s</code></td>
+</tr>
+<tr>
+<td><code>grep</code>、<code>cat</code> 等轻量命令</td>
+<td align="right">多数为 <code>0.62～0.66s</code></td>
+</tr>
+</tbody></table>
+<p>不同轻量命令具有相近的固定耗时，说明瓶颈不在命令本身，而在它们共享的进程启动路径。</p>
+<h2 id="根因：百万级-nofile-遇到-Python-2-close-fds"><a href="#根因：百万级-nofile-遇到-Python-2-close-fds" class="headerlink" title="根因：百万级 nofile 遇到 Python 2 close_fds"></a>根因：百万级 nofile 遇到 Python 2 close_fds</h2><p>服务通过 Python 2 启动外部命令：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">subprocess.Popen(..., close_fds=<span class="literal">True</span>)</span><br></pre></td></tr></table></figure>
+
+<p><code>close_fds=True</code> 表示创建子进程时，关闭不应被继承的文件描述符（FD），避免数据库连接、Socket、Pipe 等资源泄漏给子进程。这个安全语义不应被直接取消。</p>
+<p>问题在于，Python 2 的旧实现会根据 <code>RLIMIT_NOFILE</code> 上限处理 FD。即使服务实际只打开约 127 个 FD，只要上限为 <code>1048576</code>，每次 <code>Popen</code> 仍可能处理从 <code>3</code> 到 <code>1048576</code> 的巨大范围。</p>
+<p>现场继续追溯发现，宿主机的 containerd systemd Unit 显式设置了：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[Service]</span></span><br><span class="line"><span class="attr">LimitNOFILE</span>=<span class="number">1048576</span></span><br></pre></td></tr></table></figure>
+
+<p>容器没有覆盖该值，因此形成完整的继承链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">systemd</span><br><span class="line">  └─ containerd</span><br><span class="line">      └─ containerd-shim</span><br><span class="line">          └─ 容器进程</span><br><span class="line">              └─ Python 2 服务</span><br></pre></td></tr></table></figure>
+
+<p>这不是 Kubernetes 的 CPU、内存 <code>resources.limits</code>，而是 Linux 进程级资源限制。</p>
+<h2 id="现场证据：最小实验闭合因果链"><a href="#现场证据：最小实验闭合因果链" class="headerlink" title="现场证据：最小实验闭合因果链"></a>现场证据：最小实验闭合因果链</h2><p>宿主机服务与 Pod 服务的限制不同：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">宿主机服务：Max open files =   65535</span><br><span class="line">Pod 服务：   Max open files = 1048576</span><br></pre></td></tr></table></figure>
+
+<p>使用相同 Python 2 运行最小 <code>Popen</code> 测试，结果如下：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th align="right">单次耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pod 内直接执行 Bash</td>
+<td align="right"><code>0.00s</code></td>
+</tr>
+<tr>
+<td><code>nofile=1048576</code>，<code>close_fds=True</code></td>
+<td align="right"><code>581ms</code></td>
+</tr>
+<tr>
+<td><code>nofile=1048576</code>，<code>close_fds=False</code></td>
+<td align="right"><code>1.71ms</code></td>
+</tr>
+<tr>
+<td>临时限制 <code>nofile=65535</code>，<code>close_fds=True</code></td>
+<td align="right"><code>38.5ms</code></td>
+</tr>
+</tbody></table>
+<p>将 <code>nofile</code> 临时调整为 <code>65535</code> 后，在保持 <code>close_fds=True</code> 的情况下，<code>Popen</code> 从 <code>581ms</code> 降到 <code>38.5ms</code>，性能提升约 15 倍。</p>
+<p>按 250 次外部命令估算，百万级 <code>nofile</code> 带来的额外耗时约为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">250 × (581ms - 38.5ms) ≈ 136 秒</span><br></pre></td></tr></table></figure>
+
+<p>该结果与现场多出的两分多钟基本吻合。</p>
+<p>同时，Pod 的资源数据排除了常见竞争假设：</p>
+<table>
+<thead>
+<tr>
+<th>检查项</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CPU Limit</td>
+<td>4 核</td>
+</tr>
+<tr>
+<td>CPU Throttling</td>
+<td><code>nr_throttled=0</code>、<code>throttled_time=0</code></td>
+</tr>
+<tr>
+<td>内存使用</td>
+<td>约 <code>122Mi / 8Gi</code></td>
+</tr>
+<tr>
+<td>内存触限</td>
+<td><code>failcnt=0</code></td>
+</tr>
+<tr>
+<td>容器重启</td>
+<td>0 次</td>
+</tr>
+</tbody></table>
+<p>因此，问题不是 Pod 缺少 CPU 或内存，也不是容器内所有进程启动都慢，而是 Python 2、<code>close_fds=True</code> 与百万级 <code>nofile</code> 共同触发的固定开销。</p>
+<h2 id="如何快速定位同类问题"><a href="#如何快速定位同类问题" class="headerlink" title="如何快速定位同类问题"></a>如何快速定位同类问题</h2><p>首先读取真实服务进程的限制，不要只查看当前 Shell 的 <code>ulimit</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/&lt;service-pid&gt;/limits | grep <span class="string">&#x27;Max open files&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>再对比直接执行与 Python 2 的 <code>Popen</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/usr/bin/time -p /bin/true</span><br><span class="line"></span><br><span class="line">/usr/bin/python -m timeit -n 1 -r 5 \</span><br><span class="line">  <span class="string">&#x27;import subprocess; subprocess.Popen(&quot;true&quot;, close_fds=True).communicate()&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>最后检查 containerd 的限制来源：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">systemctl show containerd \</span><br><span class="line">  -p LimitNOFILE \</span><br><span class="line">  -p FragmentPath \</span><br><span class="line">  -p DropInPaths</span><br></pre></td></tr></table></figure>
+
+<p>如果 containerd、shim、容器入口进程和服务进程的 <code>/proc/&lt;pid&gt;/limits</code> 数值一致，即可确认继承关系。</p>
+<h2 id="修复方案"><a href="#修复方案" class="headerlink" title="修复方案"></a>修复方案</h2><h3 id="长期修复：跟随-containerd-2-0-官方-Unit"><a href="#长期修复：跟随-containerd-2-0-官方-Unit" class="headerlink" title="长期修复：跟随 containerd 2.0 官方 Unit"></a>长期修复：跟随 containerd 2.0 官方 Unit</h3><p><a target="_blank" rel="noopener" href="https://github.com/containerd/containerd/blob/main/docs/containerd-2.0.md">containerd 2.0 官方文档</a>明确说明，参考 systemd Unit 已移除显式 <code>LimitNOFILE</code>，因为 containerd 的限制会被容器继承。</p>
+<p>长期应评估升级到 containerd 2.0，或在当前版本中参考官方 Unit，移除 <code>containerd.service</code> 及其 Drop-In 中显式设置的：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">LimitNOFILE</span>=<span class="number">1048576</span></span><br></pre></td></tr></table></figure>
+
+<p>让 containerd 使用经过评估的 systemd 默认限制，避免百万级 <code>nofile</code> 继续传递给所有容器。</p>
+<p>该变更影响节点上的全部容器，不能直接全量修改。应先在测试节点验证 FD 容量、容器继承值和运行时稳定性，再通过维护窗口逐节点发布，并保留原 Unit 作为回滚配置。</p>
+<h3 id="短期止血：仅限制受影响的服务"><a href="#短期止血：仅限制受影响的服务" class="headerlink" title="短期止血：仅限制受影响的服务"></a>短期止血：仅限制受影响的服务</h3><p>无法立即升级 containerd 或调整全局 Unit 时，可以只调整受影响服务入口进程的 <code>RLIMIT_NOFILE</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">prlimit --nofile=65535:65535 -- \</span><br><span class="line">  /usr/bin/python \</span><br><span class="line">  /path/to/service.py \</span><br><span class="line">  -c /path/to/service.yaml</span><br></pre></td></tr></table></figure>
+
+<p><code>65535</code> 不是适用于所有服务的固定答案。修改前应统计单并发和峰值并发下的实际 FD 数，并保留足够余量。</p>
+<p>不建议采用以下方案：</p>
+<ul>
+<li>设置 <code>close_fds=False</code>：可能向子进程泄漏数据库连接、Socket 等资源；</li>
+<li>未做容量评估、灰度和回滚准备就修改所有节点的 containerd Unit；</li>
+<li>只增加 CPU 或内存：无法消除按 FD 上限处理的固定开销。</li>
+</ul>
+<p>同时应推进 Python 运行时升级，减少对 Python 2 旧子进程实现的依赖。</p>
+<h2 id="验收矩阵"><a href="#验收矩阵" class="headerlink" title="验收矩阵"></a>验收矩阵</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>验收标准</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程限制</td>
+<td>containerd 与应用服务的 soft&#x2F;hard <code>nofile</code> 符合目标设计</td>
+</tr>
+<tr>
+<td>继承关系</td>
+<td>新建容器不再继承未经评估的百万级 <code>nofile</code></td>
+</tr>
+<tr>
+<td>微基准</td>
+<td><code>Popen(close_fds=True)</code> 从约 <code>581ms</code> 降至几十毫秒</td>
+</tr>
+<tr>
+<td>FD 容量</td>
+<td>峰值 FD 数显著低于新上限</td>
+</tr>
+<tr>
+<td>单业务任务</td>
+<td>相同输入、相同节点的总耗时明显下降</td>
+</tr>
+<tr>
+<td>并发任务</td>
+<td>无新的排队、锁竞争或超时</td>
+</tr>
+<tr>
+<td>错误监控</td>
+<td>无 <code>Too many open files</code></td>
+</tr>
+<tr>
+<td>业务结果</td>
+<td>任务结果和终态符合预期</td>
+</tr>
+<tr>
+<td>运行时</td>
+<td>containerd 与现有容器运行稳定</td>
+</tr>
+<tr>
+<td>回滚</td>
+<td>可恢复原 systemd Unit 和服务启动配置</td>
+</tr>
+</tbody></table>
+<p>本次现场已验证临时 <code>prlimit</code> 可以将 <code>Popen</code> 降至约 <code>38.5ms</code>，确认了根因和短期修复方向；尚未升级 containerd、修改永久 Unit，也未完成修复后的完整业务回归。因此，当前结论不能表述为已经完成生产修复。</p>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%97%AE%E9%A2%98%E7%8E%B0%E8%B1%A1%E4%B8%8E%E5%BD%B1%E5%93%8D"><span class="top-box-text">问题现象与影响</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%A0%B9%E5%9B%A0%EF%BC%9A%E7%99%BE%E4%B8%87%E7%BA%A7-nofile-%E9%81%87%E5%88%B0-Python-2-close-fds"><span class="top-box-text">根因：百万级 nofile 遇到 Python 2 close_fds</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E7%8E%B0%E5%9C%BA%E8%AF%81%E6%8D%AE%EF%BC%9A%E6%9C%80%E5%B0%8F%E5%AE%9E%E9%AA%8C%E9%97%AD%E5%90%88%E5%9B%A0%E6%9E%9C%E9%93%BE"><span class="top-box-text">现场证据：最小实验闭合因果链</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%A6%82%E4%BD%95%E5%BF%AB%E9%80%9F%E5%AE%9A%E4%BD%8D%E5%90%8C%E7%B1%BB%E9%97%AE%E9%A2%98"><span class="top-box-text">如何快速定位同类问题</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E4%BF%AE%E5%A4%8D%E6%96%B9%E6%A1%88"><span class="top-box-text">修复方案</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E9%95%BF%E6%9C%9F%E4%BF%AE%E5%A4%8D%EF%BC%9A%E8%B7%9F%E9%9A%8F-containerd-2-0-%E5%AE%98%E6%96%B9-Unit"><span class="top-box-text">长期修复：跟随 containerd 2.0 官方 Unit</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E7%9F%AD%E6%9C%9F%E6%AD%A2%E8%A1%80%EF%BC%9A%E4%BB%85%E9%99%90%E5%88%B6%E5%8F%97%E5%BD%B1%E5%93%8D%E7%9A%84%E6%9C%8D%E5%8A%A1"><span class="top-box-text">短期止血：仅限制受影响的服务</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%AA%8C%E6%94%B6%E7%9F%A9%E9%98%B5"><span class="top-box-text">验收矩阵</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/08/19/%E5%A6%82%E4%BD%95%E6%B5%8B%E8%AF%95%E7%BD%91%E7%BB%9C%E8%AE%BE%E5%A4%87%E6%80%A7%E8%83%BD%EF%BC%9A%E4%BB%8E%E5%90%9E%E5%90%90%E3%80%81PPS%E5%88%B0RFC-2544/">
+          <h3 class="post-title">
+            
+            下一篇：如何测试网络设备性能：从吞吐、PPS 到 RFC 2544
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+

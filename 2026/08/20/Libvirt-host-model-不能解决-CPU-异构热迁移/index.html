@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>Libvirt host-model 为什么不能直接解决 CPU 异构热迁移</title>
+<meta name="keywords" content="Libvirt host-model 为什么不能直接解决 CPU 异构热迁移, fuscoyu&#39;s Blog">
+<meta name="description" content="
+本文根据一次 Libvirt CPU 模型讨论和官方文档整理。示例用于说明设计方法，尚未在客户环境完成跨 CPU 热迁移实测。
+
+我之前认为，只要把虚拟机 CPU 配置成 host-model，Libvirt 就能屏蔽宿主机 CPU 差异">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="Libvirt host-model 为什么不能直接解决 CPU 异构热迁移">
+<meta property="og:description" content="
+本文根据一次 Libvirt CPU 模型讨论和官方文档整理。示例用于说明设计方法，尚未在客户环境完成跨 CPU 热迁移实测。
+
+我之前认为，只要把虚拟机 CPU 配置成 host-model，Libvirt 就能屏蔽宿主机 CPU 差异">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">Libvirt host-model 为什么不能直接解决 CPU 异构热迁移</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-08-21</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Libvirt/">
+              Libvirt
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/QEMU/">
+              QEMU
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/KVM/">
+              KVM
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Live-Migration/">
+              Live Migration
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <blockquote>
+<p>本文根据一次 Libvirt CPU 模型讨论和官方文档整理。示例用于说明设计方法，尚未在客户环境完成跨 CPU 热迁移实测。</p>
+</blockquote>
+<p>我之前认为，只要把虚拟机 CPU 配置成 <code>host-model</code>，Libvirt 就能屏蔽宿主机 CPU 差异，从而解决 CPU 异构问题。</p>
+<p>这个理解只对了一半：<code>host-model</code> 确实比 <code>host-passthrough</code> 更容易迁移，但它优化的是<strong>虚拟机在当前宿主机启动时所看到的 CPU</strong>，并不会自动计算整个集群都支持的公共 CPU 基线。</p>
+<p>如果客户真正需要的是在不同代 CPU 之间进行双向热迁移，核心问题不是“如何尽量接近当前宿主机”，而是“如何让虚拟机从启动开始就只使用所有目标宿主机都能提供的 CPU ABI”。</p>
+<span id="more"></span>
+
+<h2 id="先区分三种需求"><a href="#先区分三种需求" class="headerlink" title="先区分三种需求"></a>先区分三种需求</h2><p>“支持 CPU 异构”可能指三件不同的事：</p>
+<table>
+<thead>
+<tr>
+<th>需求</th>
+<th>典型场景</th>
+<th><code>host-model</code> 是否合适</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>异构节点都能创建虚拟机</td>
+<td>虚拟机关机后可以调度到另一代 CPU</td>
+<td>通常可以，但重启后 Guest 看到的 CPU 可能变化</td>
+</tr>
+<tr>
+<td>单向热迁移</td>
+<td>从旧 CPU 迁移到能力更强的新 CPU</td>
+<td>可能可行，必须预检查和实测</td>
+</tr>
+<tr>
+<td>双向跨代热迁移</td>
+<td>新旧 CPU 节点之间可以来回迁移</td>
+<td>不能只依赖 <code>host-model</code>，应设计公共 CPU 基线</td>
+</tr>
+</tbody></table>
+<p>客户说“跨 CPU”，还需要继续明确边界：</p>
+<ul>
+<li>是同厂商不同代，例如 Intel Broadwell 与 Skylake；</li>
+<li>还是 Intel 与 AMD 跨厂商；</li>
+<li>只要求旧节点迁往新节点，还是必须双向迁移；</li>
+<li>是热迁移，还是允许关机后冷迁移；</li>
+<li>迁移池中具体包含哪些宿主机，而不是泛指整个集群。</li>
+</ul>
+<p>这些答案会直接改变 CPU 模型设计。</p>
+<h2 id="Libvirt-的四种-CPU-模式"><a href="#Libvirt-的四种-CPU-模式" class="headerlink" title="Libvirt 的四种 CPU 模式"></a>Libvirt 的四种 CPU 模式</h2><table>
+<thead>
+<tr>
+<th>CPU 模式</th>
+<th>Guest 看到的 CPU</th>
+<th>性能与特性</th>
+<th>迁移边界</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>host-passthrough</code></td>
+<td>尽可能等同宿主机</td>
+<td>最接近物理 CPU</td>
+<td>依赖硬件、QEMU、微码和配置高度一致</td>
+</tr>
+<tr>
+<td><code>host-model</code></td>
+<td>启动时选择最接近当前宿主机的命名模型，再补充特性</td>
+<td>接近宿主机</td>
+<td>适合 CPU 基本同构的迁移池，不保证跨代双向迁移</td>
+</tr>
+<tr>
+<td><code>custom</code></td>
+<td>显式指定命名模型和 CPU Features</td>
+<td>会舍弃部分新 CPU 特性</td>
+<td>可固定 Guest CPU ABI，适合跨代迁移池</td>
+</tr>
+<tr>
+<td><code>maximum</code></td>
+<td>暴露 Hypervisor 能提供的最大特性集</td>
+<td>特性最多</td>
+<td>不适合追求迁移兼容性的 KVM Guest</td>
+</tr>
+</tbody></table>
+<p><code>host-passthrough</code> 的目标是“像宿主机”，<code>host-model</code> 的目标是“尽量接近宿主机且更可迁移”，而 <code>custom</code> 的目标是“无论落在哪台宿主机，都向 Guest 提供相同的 CPU 契约”。</p>
+<p>这三者解决的不是同一个问题。</p>
+<h2 id="host-model-实际做了什么"><a href="#host-model-实际做了什么" class="headerlink" title="host-model 实际做了什么"></a>host-model 实际做了什么</h2><p>下面的 XML 看起来没有指定具体 CPU：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;host-model&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>虚拟机启动前，Libvirt 会根据当前宿主机的 Domain Capabilities，选择一个最接近宿主机的 QEMU 命名 CPU 模型，并补充必要的 CPU Features。</p>
+<p>假设两台宿主机的能力如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Host A：支持 f1、f2、f3、f4</span><br><span class="line">Host B：支持 f1、f2、f3</span><br></pre></td></tr></table></figure>
+
+<p>虚拟机在 Host A 启动后，可能看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Guest CPU：f1、f2、f3、f4</span><br></pre></td></tr></table></figure>
+
+<p>热迁移时，Libvirt 会把这台运行中虚拟机的完整 CPU 定义传给 Host B。为了保证 Guest 在迁移前后看到相同硬件，Host B 也必须提供 <code>f4</code>。如果它做不到，迁移预检查或恢复阶段就会失败。</p>
+<p>反过来，虚拟机如果最初在 Host B 启动，只暴露 <code>f1、f2、f3</code>，迁移到能力更强的 Host A 往往更容易成功。因此 <code>host-model</code> 的迁移兼容性可能具有方向性：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">旧 CPU → 新 CPU：可能成功</span><br><span class="line">新 CPU → 旧 CPU：可能失败</span><br></pre></td></tr></table></figure>
+
+<p>这里的“可能”很重要。CPU 不是热迁移的唯一约束，QEMU 版本、Machine Type、内核、微码、设备模型、存储和网络也要兼容。</p>
+<h2 id="最容易混淆的地方"><a href="#最容易混淆的地方" class="headerlink" title="最容易混淆的地方"></a>最容易混淆的地方</h2><h3 id="同一份-host-model-XML，不等于同一个-Guest-CPU"><a href="#同一份-host-model-XML，不等于同一个-Guest-CPU" class="headerlink" title="同一份 host-model XML，不等于同一个 Guest CPU"></a>同一份 host-model XML，不等于同一个 Guest CPU</h3><p>相同的持久化 XML：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;host-model&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>在不同宿主机冷启动时，可能展开成不同的有效 CPU。也就是说，它保证的是“在当前节点尽可能合理”，而不是“整个迁移池的 CPU ABI 永远一致”。</p>
+<p>运行中的虚拟机热迁移后，Guest 仍会保持迁移前的 CPU 定义；但关机并在目标宿主机重新启动后，Libvirt 会重新计算 <code>host-model</code>，Guest 可能看到更多或更少的 CPU Features。</p>
+<h3 id="migratable-x3D-’on’-不是异构迁移开关"><a href="#migratable-x3D-’on’-不是异构迁移开关" class="headerlink" title="migratable&#x3D;’on’ 不是异构迁移开关"></a>migratable&#x3D;’on’ 不是异构迁移开关</h3><p>例如：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;host-passthrough&#x27;</span> <span class="attr">migratable</span>=<span class="string">&#x27;on&#x27;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>migratable=&#39;on&#39;</code> 只会尝试移除已知会阻塞迁移的 CPU Features，并不会自动求出两台异构宿主机的公共特性集。Libvirt 官方文档明确提醒：即使开启它，<code>host-passthrough</code> 在宿主机不一致时仍然危险。</p>
+<h3 id="CPU-兼容不等于整机可热迁移"><a href="#CPU-兼容不等于整机可热迁移" class="headerlink" title="CPU 兼容不等于整机可热迁移"></a>CPU 兼容不等于整机可热迁移</h3><p>CPU 基线通过，只能说明 CPU 这一层满足条件。完整热迁移还依赖：</p>
+<ul>
+<li>源、目标使用兼容的 QEMU 版本和相同的版本化 Machine Type；</li>
+<li>Guest 设备模型及其 Features 一致；</li>
+<li>磁盘、网络和迁移通道满足迁移方式要求；</li>
+<li>NUMA、CPU Pinning、Huge Page、VFIO 等资源能在目标节点重建；</li>
+<li>目标宿主机内核、KVM、微码和安全缓解特性满足 Guest CPU 定义。</li>
+</ul>
+<p>因此，不能把“CPU Compare 通过”写成“热迁移一定成功”。</p>
+<h2 id="跨代双向热迁移：固定公共-CPU-基线"><a href="#跨代双向热迁移：固定公共-CPU-基线" class="headerlink" title="跨代双向热迁移：固定公共 CPU 基线"></a>跨代双向热迁移：固定公共 CPU 基线</h2><p>如果迁移池中包含多代 CPU，并要求双向热迁移，更稳妥的设计是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Host A CPU Features ─┐</span><br><span class="line">                     ├─ 求交集 ─→ Cluster CPU Baseline ─→ Guest CPU ABI</span><br><span class="line">Host B CPU Features ─┤</span><br><span class="line">Host C CPU Features ─┘</span><br></pre></td></tr></table></figure>
+
+<p>QEMU 的建议也是：在混合 CPU 型号的迁移池中，选择<strong>所有目标宿主机都支持的最新命名 CPU 模型</strong>。</p>
+<h3 id="1-固定迁移域"><a href="#1-固定迁移域" class="headerlink" title="1. 固定迁移域"></a>1. 固定迁移域</h3><p>先列出真正需要互相热迁移的宿主机，不要把所有计算节点默认放进同一个兼容域。跨厂商 CPU 的边界更复杂，不能只看少量相同 Flags 就假设兼容；更稳妥的做法是拆分迁移域，再分别验证。</p>
+<h3 id="2-收集能力并计算-Baseline"><a href="#2-收集能力并计算-Baseline" class="headerlink" title="2. 收集能力并计算 Baseline"></a>2. 收集能力并计算 Baseline</h3><p>可以先在各宿主机收集能力：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">virsh capabilities &gt; host-a.xml</span><br><span class="line">virsh capabilities &gt; host-b.xml</span><br></pre></td></tr></table></figure>
+
+<p>将多个宿主机的 Capabilities 汇总到一个输入文件后，计算可迁移基线：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">virsh cpu-baseline hosts.xml --migratable</span><br></pre></td></tr></table></figure>
+
+<p>较新的 Libvirt 还提供 <code>hypervisor-cpu-baseline</code>。它会结合指定 QEMU、架构和 Machine Type 的实际能力计算基线，比只比较物理 CPU 更贴近虚拟机最终能获得的 CPU。生产设计应优先使用 Domain Capabilities 和该命令，并确保所有节点使用相同参数。</p>
+<h3 id="3-把结果固化为-custom-CPU"><a href="#3-把结果固化为-custom-CPU" class="headerlink" title="3. 把结果固化为 custom CPU"></a>3. 把结果固化为 custom CPU</h3><p>不要为异构迁移池保留动态 <code>host-model</code>，而是将计算和验证后的基线固化到虚拟机模板。例如：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">cpu</span> <span class="attr">mode</span>=<span class="string">&#x27;custom&#x27;</span> <span class="attr">match</span>=<span class="string">&#x27;exact&#x27;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">model</span> <span class="attr">fallback</span>=<span class="string">&#x27;forbid&#x27;</span>&gt;</span>Broadwell-v4<span class="tag">&lt;/<span class="name">model</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">feature</span> <span class="attr">policy</span>=<span class="string">&#x27;require&#x27;</span> <span class="attr">name</span>=<span class="string">&#x27;pcid&#x27;</span>/&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">cpu</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>这只是结构示例，<code>Broadwell-v4</code> 和 <code>pcid</code> 不能直接套用。真实模型与 Features 必须来自迁移池的能力交集，并结合 Guest 安全、性能和业务需求评审。</p>
+<p><code>fallback=&#39;forbid&#39;</code> 可以避免 Hypervisor 静默退回到另一个模型。代价是目标宿主机无法严格提供该 CPU 时，虚拟机会直接启动失败；这正是生产环境需要的失败方式。</p>
+<h3 id="4-在每台目标宿主机做预检查"><a href="#4-在每台目标宿主机做预检查" class="headerlink" title="4. 在每台目标宿主机做预检查"></a>4. 在每台目标宿主机做预检查</h3><p>至少验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">virsh hypervisor-cpu-compare baseline.xml \</span><br><span class="line">  kvm /usr/bin/qemu-system-x86_64 x86_64 &lt;machine-type&gt; --error</span><br></pre></td></tr></table></figure>
+
+<p>QEMU 路径和 Machine Type 以实际 Domain XML 为准。还应比较各节点的：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">virsh version</span><br><span class="line">qemu-system-x86_64 --version</span><br><span class="line"><span class="built_in">uname</span> -r</span><br><span class="line">virsh domcapabilities kvm /usr/bin/qemu-system-x86_64 x86_64 &lt;machine-type&gt;</span><br></pre></td></tr></table></figure>
+
+<p>版本号相同也不是充分条件，还要保证发行版补丁、微码和关键配置的兼容策略一致。</p>
+<h2 id="验收矩阵"><a href="#验收矩阵" class="headerlink" title="验收矩阵"></a>验收矩阵</h2><p>不要只做一次“迁移命令返回成功”。最小验收应覆盖：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>预期结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Host A → Host B 热迁移</td>
+<td>迁移成功，业务连续</td>
+</tr>
+<tr>
+<td>Host B → Host A 热迁移</td>
+<td>迁移成功，业务连续</td>
+</tr>
+<tr>
+<td>迁移前后检查 Guest CPU</td>
+<td>Model、Flags 和 ABI 保持一致</td>
+</tr>
+<tr>
+<td>CPU 压力下迁移</td>
+<td>业务计算结果正确，无 Guest Crash 或 Hang</td>
+</tr>
+<tr>
+<td>目标宿主机冷启动</td>
+<td>Guest CPU 仍与模板定义一致</td>
+</tr>
+<tr>
+<td>迁移失败回滚</td>
+<td>源端虚拟机可继续运行，状态明确</td>
+</tr>
+<tr>
+<td>宿主机升级后回归</td>
+<td>双向迁移矩阵重新通过</td>
+</tr>
+</tbody></table>
+<p>迁移前后可在 Guest 中记录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lscpu</span><br><span class="line">grep -m1 <span class="string">&#x27;^flags&#x27;</span> /proc/cpuinfo</span><br></pre></td></tr></table></figure>
+
+<p>如果使用了特定指令集，还应运行能实际执行这些指令的业务或测试程序。只比较 Flags，不能证明应用状态和设备状态都正确迁移。</p>
+<h2 id="最终结论"><a href="#最终结论" class="headerlink" title="最终结论"></a>最终结论</h2><p>我原来的判断是：</p>
+<blockquote>
+<p><code>host-model</code> 可以屏蔽 CPU 差异，所以能解决 CPU 异构。</p>
+</blockquote>
+<p>更准确的结论应该是：</p>
+<blockquote>
+<p><code>host-model</code> 能在当前宿主机上生成接近物理 CPU、相对易迁移的 Guest CPU，适合 CPU 基本同构的资源池；它不是集群级公共 CPU 基线，也不保证不同代 CPU 之间可以双向热迁移。</p>
+</blockquote>
+<p>如果客户只是希望异构节点都能运行虚拟机，<code>host-model</code> 可能已经足够；如果客户要求跨代双向热迁移，应为明确的迁移域计算公共 CPU Baseline，固化为 <code>custom</code> CPU，并连同 Machine Type、QEMU、内核、微码和设备模型一起完成双向实测。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://libvirt.org/formatdomain.html#cpu-model-and-topology">Libvirt Domain XML：CPU model and topology</a></li>
+<li><a target="_blank" rel="noopener" href="https://libvirt.org/manpages/virsh.html#cpu-baseline">Libvirt virsh：cpu-baseline 与 hypervisor-cpu-baseline</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.qemu.org/docs/master/system/qemu-cpu-models.html">QEMU&#x2F;KVM CPU model configuration</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.qemu.org/docs/master/devel/migration/compatibility.html">QEMU migration backwards compatibility</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.openstack.org/nova/latest/admin/cpu-models.html">OpenStack Nova：CPU models</a></li>
+</ul>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%85%88%E5%8C%BA%E5%88%86%E4%B8%89%E7%A7%8D%E9%9C%80%E6%B1%82"><span class="top-box-text">先区分三种需求</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#Libvirt-%E7%9A%84%E5%9B%9B%E7%A7%8D-CPU-%E6%A8%A1%E5%BC%8F"><span class="top-box-text">Libvirt 的四种 CPU 模式</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#host-model-%E5%AE%9E%E9%99%85%E5%81%9A%E4%BA%86%E4%BB%80%E4%B9%88"><span class="top-box-text">host-model 实际做了什么</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%9C%80%E5%AE%B9%E6%98%93%E6%B7%B7%E6%B7%86%E7%9A%84%E5%9C%B0%E6%96%B9"><span class="top-box-text">最容易混淆的地方</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%90%8C%E4%B8%80%E4%BB%BD-host-model-XML%EF%BC%8C%E4%B8%8D%E7%AD%89%E4%BA%8E%E5%90%8C%E4%B8%80%E4%B8%AA-Guest-CPU"><span class="top-box-text">同一份 host-model XML，不等于同一个 Guest CPU</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#migratable-x3D-%E2%80%99on%E2%80%99-%E4%B8%8D%E6%98%AF%E5%BC%82%E6%9E%84%E8%BF%81%E7%A7%BB%E5%BC%80%E5%85%B3"><span class="top-box-text">migratable&#x3D;’on’ 不是异构迁移开关</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#CPU-%E5%85%BC%E5%AE%B9%E4%B8%8D%E7%AD%89%E4%BA%8E%E6%95%B4%E6%9C%BA%E5%8F%AF%E7%83%AD%E8%BF%81%E7%A7%BB"><span class="top-box-text">CPU 兼容不等于整机可热迁移</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E8%B7%A8%E4%BB%A3%E5%8F%8C%E5%90%91%E7%83%AD%E8%BF%81%E7%A7%BB%EF%BC%9A%E5%9B%BA%E5%AE%9A%E5%85%AC%E5%85%B1-CPU-%E5%9F%BA%E7%BA%BF"><span class="top-box-text">跨代双向热迁移：固定公共 CPU 基线</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-%E5%9B%BA%E5%AE%9A%E8%BF%81%E7%A7%BB%E5%9F%9F"><span class="top-box-text">1. 固定迁移域</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-%E6%94%B6%E9%9B%86%E8%83%BD%E5%8A%9B%E5%B9%B6%E8%AE%A1%E7%AE%97-Baseline"><span class="top-box-text">2. 收集能力并计算 Baseline</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-%E6%8A%8A%E7%BB%93%E6%9E%9C%E5%9B%BA%E5%8C%96%E4%B8%BA-custom-CPU"><span class="top-box-text">3. 把结果固化为 custom CPU</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#4-%E5%9C%A8%E6%AF%8F%E5%8F%B0%E7%9B%AE%E6%A0%87%E5%AE%BF%E4%B8%BB%E6%9C%BA%E5%81%9A%E9%A2%84%E6%A3%80%E6%9F%A5"><span class="top-box-text">4. 在每台目标宿主机做预检查</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%AA%8C%E6%94%B6%E7%9F%A9%E9%98%B5"><span class="top-box-text">验收矩阵</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%9C%80%E7%BB%88%E7%BB%93%E8%AE%BA"><span class="top-box-text">最终结论</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="top-box-text">参考资料</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/08/20/containerd-%E7%99%BE%E4%B8%87%E7%BA%A7-nofile-%E5%A6%82%E4%BD%95%E6%8B%96%E6%85%A2-Python-2-%E5%AD%90%E8%BF%9B%E7%A8%8B/">
+          <h3 class="post-title">
+            
+            下一篇：containerd 百万级 nofile 如何拖慢 Python 2 子进程
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+
