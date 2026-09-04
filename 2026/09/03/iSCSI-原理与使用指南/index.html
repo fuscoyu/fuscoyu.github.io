@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+  <head>
+    
+
+    
+<script>!function(){var e=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,t=localStorage.getItem("use-color-scheme")||"auto";("dark"===t||e&&"light"!==t)&&document.documentElement.classList.toggle("dark",!0)}()</script>
+    
+
+<meta charset="utf-8" >
+
+<title>iSCSI 原理与使用指南：以 Ubuntu 24.04 为例</title>
+<meta name="keywords" content="iSCSI 原理与使用指南：以 Ubuntu 24.04 为例, fuscoyu&#39;s Blog">
+<meta name="description" content="
+本文由 Codex 根据《iscsi使用》笔记辅助整理生成，并用 RFC 7143、Open-iSCSI、targetcli 与 Ubuntu 官方文档校正。命令以 Ubuntu Server 24.04 LTS 为例，用于演示标准流程，">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="iSCSI 原理与使用指南：以 Ubuntu 24.04 为例">
+<meta property="og:description" content="
+本文由 Codex 根据《iscsi使用》笔记辅助整理生成，并用 RFC 7143、Open-iSCSI、targetcli 与 Ubuntu 官方文档校正。命令以 Ubuntu Server 24.04 LTS 为例，用于演示标准流程，">
+
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style/main.css">
+
+  <meta name="generator" content="Hexo 6.3.0"><link rel="alternate" href="/atom.xml" title="fuscoyu's Blog" type="application/atom+xml">
+</head>
+  <body>
+    <div id="app" class="main">
+
+<div class="site-header-container">
+  <div class="site-header">
+    <div class="left">
+      <a href="https://fuscoyu.github.io">
+        <img class="avatar" src="/images/avatar.png" alt="logo" width="32px" height="32px">
+      </a>
+      <a href="https://fuscoyu.github.io">
+        <h1 class="site-title">fuscoyu&#39;s Blog</h1>
+      </a>
+    </div>
+    <div class="right">
+        <i class="icon menu-switch icon-menu-outline" ></i>
+    </div>
+  </div>
+</div>
+
+<div class="menu-container" style="height: 0;opacity: 0;">
+<nav class="menu-list">
+  
+    
+      <a href="/" class="menu purple-link">
+        首页
+      </a>
+    
+  
+    
+      <a href="/tags" class="menu purple-link">
+        标签
+      </a>
+    
+  
+    
+      <a href="/archives" class="menu purple-link">
+        归档
+      </a>
+    
+  
+    
+      <a href="/about" class="menu purple-link">
+        关于
+      </a>
+    
+  
+</nav>
+</div>
+
+
+
+  <div class="content-container">
+    <div class="post-detail">
+      
+      <h2 class="post-title">iSCSI 原理与使用指南：以 Ubuntu 24.04 为例</h2>
+      <div class="post-info post-detail-info">
+        <span><i class="icon icon-calendar-outline"></i> 2026-09-04</span>
+        
+          <span>
+          <i class="icon icon-pricetags-outline"></i>
+            
+              <a href="/tags/Linux/">
+              Linux
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Ubuntu/">
+              Ubuntu
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/iSCSI/">
+              iSCSI
+                
+                  ，
+                
+              </a>
+            
+              <a href="/tags/Storage/">
+              Storage
+                
+              </a>
+            
+          </span>
+        
+      </div>
+      <div class="post-content-wrapper">
+        <div class="post-content">
+          <blockquote>
+<p>本文由 Codex 根据《iscsi使用》笔记辅助整理生成，并用 RFC 7143、Open-iSCSI、targetcli 与 Ubuntu 官方文档校正。命令以 <strong>Ubuntu Server 24.04 LTS</strong> 为例，用于演示标准流程，<strong>未在本文发布时的真实环境中执行验证</strong>。</p>
+</blockquote>
+<p>iSCSI 把 SCSI 命令、数据和状态封装进 iSCSI PDU，再通过 TCP&#x2F;IP 传输。对客户端来说，远端 LUN 最终会表现为一块本地块设备，因此可以继续分区、创建文件系统、加入 LVM；也正因为它是块设备，选错盘执行 <code>mkfs</code>、<code>wipefs</code> 或 <code>pvcreate</code> 会直接破坏数据。</p>
+<span id="more"></span>
+
+<h2 id="原理：网络上传输的是块-I-x2F-O"><a href="#原理：网络上传输的是块-I-x2F-O" class="headerlink" title="原理：网络上传输的是块 I&#x2F;O"></a>原理：网络上传输的是块 I&#x2F;O</h2><p><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc7143">RFC 7143</a> 将 iSCSI 定义为 SCSI 到 TCP 的映射：Initiator 发出 SCSI 命令，Target 返回数据、响应和状态。它不是 NFS 这类文件协议，不理解目录、文件或权限。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">应用 / 文件系统 / LVM</span><br><span class="line">          │</span><br><span class="line">       SCSI 块 I/O</span><br><span class="line">          │</span><br><span class="line">Initiator ── iSCSI/TCP ── Target ── Backstore</span><br><span class="line">                                  └─ /dev/vdc</span><br></pre></td></tr></table></figure>
+
+<p>关键对象如下：</p>
+<table>
+<thead>
+<tr>
+<th>对象</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Initiator</td>
+<td>发起连接并使用块设备的客户端</td>
+</tr>
+<tr>
+<td>Target</td>
+<td>提供 SCSI 资源的服务端逻辑节点</td>
+</tr>
+<tr>
+<td>Backstore</td>
+<td>Target 后端的真实存储，例如块设备、逻辑卷或文件</td>
+</tr>
+<tr>
+<td>LUN</td>
+<td>Target 内逻辑单元的编号；一个 Target 可以提供多个 LUN</td>
+</tr>
+<tr>
+<td>Portal</td>
+<td>Target 的监听地址，通常是 <code>IP:TCP 端口</code>；默认端口为 <code>3260</code></td>
+</tr>
+<tr>
+<td>TPG</td>
+<td>Target Portal Group，一组属于同一逻辑 SCSI Target Port 的 Portal 与策略</td>
+</tr>
+<tr>
+<td>ACL</td>
+<td>按 Initiator 名称控制其可以访问的 LUN</td>
+</tr>
+<tr>
+<td>IQN</td>
+<td>iSCSI Qualified Name，用于标识 <strong>Initiator 或 Target</strong>，不是只标识客户端</td>
+</tr>
+</tbody></table>
+<p>IQN 常见格式为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iqn.yyyy-mm.反写域名:自定义唯一名称</span><br></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iqn.2026-09.com.example:storage.disk1</span><br></pre></td></tr></table></figure>
+
+<p>其中年月应是命名机构拥有该域名的时间。IQN 标识的是逻辑 iSCSI 节点，与某块网卡或 IP 地址无关；更换地址不应顺手更换 IQN。完整命名规则见 <a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc7143#section-4.2.7">RFC 7143 第 4.2.7 节</a>。</p>
+<h2 id="实验架构与边界"><a href="#实验架构与边界" class="headerlink" title="实验架构与边界"></a>实验架构与边界</h2><p>本文沿用内部笔记的双机拓扑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Target                                      Initiator</span><br><span class="line">192.168.100.2                               192.168.100.3</span><br><span class="line">/dev/vdc ── LIO/targetcli ── TCP 3260 ── Open-iSCSI ── /dev/sdX</span><br></pre></td></tr></table></figure>
+
+<p>目标是将 <code>192.168.100.2</code> 上的 <code>/dev/vdc</code> 作为 LUN 0，只授权 <code>192.168.100.3</code> 使用。</p>
+<p>开始前必须确认：</p>
+<ul>
+<li><code>/dev/vdc</code> 是专门用于实验的空闲盘，盘符、容量和序列号都已复核；</li>
+<li>Target 本机没有挂载、没有加入 LVM，也没有其他程序使用 <code>/dev/vdc</code>；</li>
+<li>同一个普通 ext4&#x2F;xfs 文件系统不会被多台 Initiator 同时读写；多主机共享写入需要集群文件系统、锁与 fencing；</li>
+<li>生产环境已有数据时，先做备份和回滚方案，不照抄本文的格式化命令。</li>
+</ul>
+<p>建议先做只读检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS,SERIAL /dev/vdc</span><br><span class="line">findmnt /dev/vdc</span><br><span class="line">sudo wipefs -n /dev/vdc</span><br></pre></td></tr></table></figure>
+
+<h2 id="操作：配置-Target"><a href="#操作：配置-Target" class="headerlink" title="操作：配置 Target"></a>操作：配置 Target</h2><p>以下命令以 Ubuntu Server 24.04 LTS 为例，Target 与 Initiator 都使用具有 <code>sudo</code> 权限的普通用户操作。</p>
+<p>安装 LIO 管理工具，并启用开机配置恢复服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo apt update</span><br><span class="line">sudo apt install -y targetcli-fb</span><br><span class="line">sudo systemctl <span class="built_in">enable</span> target.service</span><br></pre></td></tr></table></figure>
+
+<p>先到 Initiator 读取真实名称：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo apt update</span><br><span class="line">sudo apt install -y open-iscsi lsscsi netcat-openbsd</span><br><span class="line">sudo systemctl <span class="built_in">enable</span> --now iscsid.service</span><br><span class="line"><span class="built_in">cat</span> /etc/iscsi/initiatorname.iscsi</span><br></pre></td></tr></table></figure>
+
+<p>假设输出为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">InitiatorName=iqn.2026-09.com.example:client.initiator1</span><br></pre></td></tr></table></figure>
+
+<p>回到 Target 进入 <code>targetcli</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$ sudo targetcli</span><br><span class="line">/&gt; cd /backstores/block</span><br><span class="line">/backstores/block&gt; create name=disk dev=/dev/vdc</span><br><span class="line">/backstores/block&gt; cd /iscsi</span><br><span class="line">/iscsi&gt; create iqn.2026-09.com.example:storage.disk1</span><br><span class="line">/iscsi&gt; cd /iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/luns</span><br><span class="line">/iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/luns&gt; create /backstores/block/disk</span><br><span class="line">/iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/luns&gt; cd /iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/acls</span><br><span class="line">/iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/acls&gt; create iqn.2026-09.com.example:client.initiator1</span><br></pre></td></tr></table></figure>
+
+<p>这里先建 LUN、后建 ACL，是为了让已有 LUN 只映射给明确的 Initiator。<code>targetcli</code> 默认启用 <code>auto_add_mapped_luns</code>，若在已有 ACL 后新增 LUN，可能自动映射到所有 ACL，带来意外授权风险。</p>
+<p>检查 Portal：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/&gt; ls /iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/portals</span><br></pre></td></tr></table></figure>
+
+<p>若自动生成了 <code>0.0.0.0:3260</code>，它会监听所有地址。需要只监听存储网地址时，删除默认 Portal 后再创建明确地址：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/&gt; /iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/portals delete 0.0.0.0 3260</span><br><span class="line">/&gt; /iscsi/iqn.2026-09.com.example:storage.disk1/tpg1/portals create 192.168.100.2 3260</span><br></pre></td></tr></table></figure>
+
+<p>最后检查并显式保存配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">/&gt; ls /</span><br><span class="line">/&gt; saveconfig</span><br><span class="line">/&gt; exit</span><br></pre></td></tr></table></figure>
+
+<p>Ubuntu 中 <code>saveconfig</code> 默认写入 <code>/etc/rtslib-fb-target/saveconfig.json</code>，并由 <code>target.service</code> 在启动时恢复。不要只依赖“退出时可能自动保存”的默认行为，可用 <code>sudo systemctl is-enabled target.service</code> 确认已启用。</p>
+<p>防火墙应只允许 Initiator 访问 Target 的 TCP 3260。如果 Ubuntu 已启用 UFW，可限制来源地址：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo ufw allow from 192.168.100.3 to 192.168.100.2 port 3260 proto tcp</span><br><span class="line">sudo ufw status verbose</span><br></pre></td></tr></table></figure>
+
+<h2 id="操作：发现、登录并使用-LUN"><a href="#操作：发现、登录并使用-LUN" class="headerlink" title="操作：发现、登录并使用 LUN"></a>操作：发现、登录并使用 LUN</h2><p>在 Initiator 上发现 Target：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo iscsiadm -m discoverydb -t sendtargets \</span><br><span class="line">  -p 192.168.100.2:3260 --discover</span><br></pre></td></tr></table></figure>
+
+<p>预期能看到 Portal、TPG Tag 和 Target IQN：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">192.168.100.2:3260,1 iqn.2026-09.com.example:storage.disk1</span><br></pre></td></tr></table></figure>
+
+<p>发现只会创建 node 记录，不等于已经登录。继续建立会话：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo iscsiadm -m node \</span><br><span class="line">  -T iqn.2026-09.com.example:storage.disk1 \</span><br><span class="line">  -p 192.168.100.2:3260 --login</span><br></pre></td></tr></table></figure>
+
+<p>检查会话与设备映射：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo iscsiadm -m session -P 3</span><br><span class="line">lsscsi</span><br><span class="line">lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS,SERIAL</span><br><span class="line"><span class="built_in">ls</span> -l /dev/disk/by-path/ | grep iscsi</span><br></pre></td></tr></table></figure>
+
+<p>不要假设新盘一定是 <code>/dev/sda</code> 或 <code>/dev/sdb</code>。<code>/dev/sdX</code> 会随发现顺序变化，应结合 Target IQN、LUN、容量和序列号确认，长期挂载使用文件系统 UUID。</p>
+<h3 id="可选：初始化一块确认无数据的新-LUN"><a href="#可选：初始化一块确认无数据的新-LUN" class="headerlink" title="可选：初始化一块确认无数据的新 LUN"></a>可选：初始化一块确认无数据的新 LUN</h3><blockquote>
+<p>⚠️ 下列 <code>mkfs.ext4</code> 会覆盖目标设备上的文件系统元数据。只有确认该 LUN 无需保留数据时才执行。</p>
+</blockquote>
+<p>先从 <code>/dev/disk/by-path/</code> 找到包含本实验 Target IQN 和 <code>lun-0</code> 的唯一链接，再解析真实设备：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ISCSI_DISK=<span class="string">&#x27;/dev/disk/by-path/ip-192.168.100.2:3260-iscsi-iqn.2026-09.com.example:storage.disk1-lun-0&#x27;</span></span><br><span class="line"><span class="built_in">readlink</span> -f <span class="string">&quot;<span class="variable">$ISCSI_DISK</span>&quot;</span></span><br><span class="line">lsblk -f <span class="string">&quot;<span class="variable">$ISCSI_DISK</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>确认无误后才创建文件系统并挂载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo mkfs.ext4 <span class="string">&quot;<span class="variable">$ISCSI_DISK</span>&quot;</span></span><br><span class="line">sudo <span class="built_in">mkdir</span> -p /mnt/iscsi</span><br><span class="line">sudo mount <span class="string">&quot;<span class="variable">$ISCSI_DISK</span>&quot;</span> /mnt/iscsi</span><br><span class="line">findmnt /mnt/iscsi</span><br></pre></td></tr></table></figure>
+
+<h2 id="持久化：重启后自动登录和挂载"><a href="#持久化：重启后自动登录和挂载" class="headerlink" title="持久化：重启后自动登录和挂载"></a>持久化：重启后自动登录和挂载</h2><p>Open-iSCSI 会将发现结果保存为 node 记录。将本节点设为自动登录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">sudo iscsiadm -m node \</span><br><span class="line">  -T iqn.2026-09.com.example:storage.disk1 \</span><br><span class="line">  -p 192.168.100.2:3260 \</span><br><span class="line">  --op update -n node.startup -v automatic</span><br><span class="line"></span><br><span class="line">sudo iscsiadm -m node \</span><br><span class="line">  -T iqn.2026-09.com.example:storage.disk1 \</span><br><span class="line">  -p 192.168.100.2:3260 \</span><br><span class="line">  --op update -n node.conn[0].startup -v automatic</span><br><span class="line"></span><br><span class="line">sudo systemctl <span class="built_in">enable</span> open-iscsi.service iscsid.service</span><br></pre></td></tr></table></figure>
+
+<p><code>/etc/iscsi/iscsid.conf</code> 中的默认值只影响之后发现的新节点，不会回写已有 node 记录，因此应直接用上面的 <code>iscsiadm --op update</code>。这是 <a target="_blank" rel="noopener" href="https://github.com/open-iscsi/open-iscsi#readme">Open-iSCSI 官方 README</a> 明确说明的行为。</p>
+<p>取得文件系统 UUID：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo blkid <span class="string">&quot;<span class="variable">$ISCSI_DISK</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>再写入 <code>/etc/fstab</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">UUID=&lt;实际 UUID&gt;  /mnt/iscsi  ext4  _netdev,nofail  0  0</span><br></pre></td></tr></table></figure>
+
+<p><code>_netdev</code> 告诉系统这是依赖网络的文件系统；<code>nofail</code> 表示 Target 暂时不可达时不阻塞整机启动。修改后先在维护窗口验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo umount /mnt/iscsi</span><br><span class="line">sudo mount -a</span><br><span class="line">findmnt /mnt/iscsi</span><br></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://ubuntu.com/server/docs/how-to/storage/iscsi-initiator-or-client/">Ubuntu Server iSCSI Initiator 文档</a> 给出了 <code>open-iscsi</code> 安装、服务启用、自动登录和 LUN 识别流程；<code>_netdev</code> 挂载说明参见 <a target="_blank" rel="noopener" href="https://github.com/open-iscsi/open-iscsi#readme">Open-iSCSI 官方 README</a>。</p>
+<h2 id="安全建议"><a href="#安全建议" class="headerlink" title="安全建议"></a>安全建议</h2><p>ACL、CHAP 和加密解决的是不同问题：</p>
+<ul>
+<li>ACL 按 Initiator IQN 授权，但 IQN 本身不是密码；</li>
+<li>CHAP 用共享密钥认证对端，但 <strong>不加密业务数据</strong>；</li>
+<li>RFC 7143 指出，CHAP 在未加密链路上会受到离线字典攻击，应使用随机强密钥；</li>
+<li>需要机密性和抗窃听时，应在专用隔离存储网中部署，并使用 IPsec 等链路保护；</li>
+<li>Portal 不要无必要监听 <code>0.0.0.0</code>，防火墙只放行所需 Initiator；</li>
+<li>不要在命令历史、博客或代码仓库中写真实 CHAP 密钥。</li>
+</ul>
+<p>Ubuntu Initiator 的 CHAP 参数可查阅 <a target="_blank" rel="noopener" href="https://ubuntu.com/server/docs/how-to/storage/iscsi-initiator-or-client/#iscsi-initiator-configuration">Ubuntu Server iSCSI 文档</a>；Target 的 TPG 和单 ACL 认证参数可查阅 <a target="_blank" rel="noopener" href="https://github.com/open-iscsi/targetcli-fb/blob/master/targetcli.8">targetcli-fb 手册</a>。</p>
+<h2 id="验收"><a href="#验收" class="headerlink" title="验收"></a>验收</h2><p>一套最小验收应覆盖以下层次：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>检查命令</th>
+<th>通过标准</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>网络</td>
+<td><code>nc -vz 192.168.100.2 3260</code></td>
+<td>TCP 3260 可达</td>
+</tr>
+<tr>
+<td>发现</td>
+<td><code>sudo iscsiadm -m node</code></td>
+<td>能看到正确 IQN 和 Portal</td>
+</tr>
+<tr>
+<td>会话</td>
+<td><code>sudo iscsiadm -m session -P 3</code></td>
+<td>会话为已登录，列出 LUN</td>
+</tr>
+<tr>
+<td>SCSI</td>
+<td><code>lsscsi</code>、<code>lsblk</code></td>
+<td>容量、LUN 与预期一致</td>
+</tr>
+<tr>
+<td>文件系统</td>
+<td><code>findmnt /mnt/iscsi</code></td>
+<td>挂载源指向目标 LUN</td>
+</tr>
+<tr>
+<td>读写</td>
+<td><code>dd</code> 或创建校验文件</td>
+<td>写入、读取和校验一致；仅在测试盘执行</td>
+</tr>
+<tr>
+<td>重启恢复</td>
+<td>维护窗口重启后复查上述项目</td>
+<td>自动登录和挂载成功</td>
+</tr>
+</tbody></table>
+<p>验收时不要只看 <code>iscsiadm --login</code> 返回成功；还要确认登录的是正确 Target、正确 LUN、正确容量，并完成文件系统层读写验证。</p>
+<h2 id="常见排障"><a href="#常见排障" class="headerlink" title="常见排障"></a>常见排障</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Discovery 无结果</td>
+<td>Target 是否监听正确 Portal；路由、防火墙和 TCP 3260 是否可达</td>
+</tr>
+<tr>
+<td>Login denied &#x2F; authorization failure</td>
+<td>ACL 中的 IQN 是否与 <code>/etc/iscsi/initiatorname.iscsi</code> 完全一致；CHAP 两端配置是否一致</td>
+</tr>
+<tr>
+<td>登录成功但没有磁盘</td>
+<td><code>iscsiadm -m session -P 3</code> 是否出现 LUN；Target 是否已映射 LUN；执行 <code>iscsiadm -m session --rescan</code> 后查看 <code>dmesg -T</code></td>
+</tr>
+<tr>
+<td>重启后没有自动登录</td>
+<td>node 记录的 <code>node.startup</code> 和 <code>node.conn[0].startup</code> 是否为 <code>automatic</code>；<code>iscsid</code>、<code>open-iscsi</code> 服务是否启用</td>
+</tr>
+<tr>
+<td>会话恢复但挂载失败</td>
+<td><code>/etc/fstab</code> 是否使用正确 UUID 与 <code>_netdev</code>；网络是否在挂载前就绪</td>
+</tr>
+<tr>
+<td>Logout 报设备忙</td>
+<td>仍有文件系统、LVM、multipath 或进程持有设备；先从上层依赖逐层释放</td>
+</tr>
+<tr>
+<td>路径中断后 I&#x2F;O 卡住</td>
+<td>先恢复存储网络并确认 Target 状态，再做受控卸载；不要在 I&#x2F;O 未收敛时强删 Target</td>
+</tr>
+</tbody></table>
+<p>常用日志与状态：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo journalctl -u iscsid -u open-iscsi --since <span class="string">&#x27;-30 min&#x27;</span></span><br><span class="line">sudo dmesg -T | grep -Ei <span class="string">&#x27;iscsi|scsi|blk|I/O error&#x27;</span></span><br><span class="line">sudo iscsiadm -m node -o show</span><br><span class="line">sudo iscsiadm -m session -P 3</span><br></pre></td></tr></table></figure>
+
+<h2 id="正确退出与清理顺序"><a href="#正确退出与清理顺序" class="headerlink" title="正确退出与清理顺序"></a>正确退出与清理顺序</h2><p>不要直接在 Target 上删除 LUN。正确顺序是先释放 Initiator 上层使用者，再断开会话，最后删除 Target 配置。</p>
+<h3 id="1-Initiator：停止-I-x2F-O-并卸载"><a href="#1-Initiator：停止-I-x2F-O-并卸载" class="headerlink" title="1. Initiator：停止 I&#x2F;O 并卸载"></a>1. Initiator：停止 I&#x2F;O 并卸载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo <span class="built_in">sync</span></span><br><span class="line">findmnt /mnt/iscsi</span><br><span class="line">sudo fuser -vm /mnt/iscsi</span><br><span class="line">sudo umount /mnt/iscsi</span><br></pre></td></tr></table></figure>
+
+<p>如果配置过 <code>/etc/fstab</code>，先删除或注释对应行。取消自动登录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo iscsiadm -m node \</span><br><span class="line">  -T iqn.2026-09.com.example:storage.disk1 \</span><br><span class="line">  -p 192.168.100.2:3260 \</span><br><span class="line">  --op update -n node.startup -v manual</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Initiator：精确登出并删除-node-记录"><a href="#2-Initiator：精确登出并删除-node-记录" class="headerlink" title="2. Initiator：精确登出并删除 node 记录"></a>2. Initiator：精确登出并删除 node 记录</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">sudo iscsiadm -m node \</span><br><span class="line">  -T iqn.2026-09.com.example:storage.disk1 \</span><br><span class="line">  -p 192.168.100.2:3260 --<span class="built_in">logout</span></span><br><span class="line"></span><br><span class="line">sudo iscsiadm -m node \</span><br><span class="line">  -T iqn.2026-09.com.example:storage.disk1 \</span><br><span class="line">  -p 192.168.100.2:3260 --op delete</span><br></pre></td></tr></table></figure>
+
+<p>不要在有多个 iSCSI 盘时随意使用 <code>--logoutall=all</code>，它会影响无关会话。</p>
+<h3 id="3-Target：确认无会话后删除导出"><a href="#3-Target：确认无会话后删除导出" class="headerlink" title="3. Target：确认无会话后删除导出"></a>3. Target：确认无会话后删除导出</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$ sudo targetcli</span><br><span class="line">/&gt; sessions list</span><br><span class="line">/&gt; /iscsi delete iqn.2026-09.com.example:storage.disk1</span><br><span class="line">/&gt; /backstores/block delete disk</span><br><span class="line">/&gt; saveconfig</span><br><span class="line">/&gt; exit</span><br></pre></td></tr></table></figure>
+
+<p>删除 Target、ACL、LUN 或 Backstore 配置通常只是取消导出，不等于擦除 <code>/dev/vdc</code> 上的数据；但在仍有 I&#x2F;O 时强制删除会造成错误甚至文件系统损坏。继续删除底层 LV、镜像文件，或对 <code>/dev/vdc</code> 执行 <code>wipefs</code>、<code>mkfs</code>，才会进一步破坏或移除实际数据。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://cwiki.yunify.com/pages/viewpage.action?pageId=160708557">内部 Confluence：iscsi使用</a>，最后更新于 2023-06-16</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc7143">RFC 7143：Internet Small Computer System Interface (iSCSI) Protocol</a></li>
+<li><a target="_blank" rel="noopener" href="https://ubuntu.com/server/docs/how-to/storage/iscsi-initiator-or-client/">Ubuntu Server：iSCSI initiator (or client)</a></li>
+<li><a target="_blank" rel="noopener" href="https://packages.ubuntu.com/noble/targetcli-fb">Ubuntu 24.04 LTS：targetcli-fb 软件包</a></li>
+<li><a target="_blank" rel="noopener" href="https://packages.ubuntu.com/noble/open-iscsi">Ubuntu 24.04 LTS：open-iscsi 软件包</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/open-iscsi/open-iscsi">Open-iSCSI 官方仓库与 README</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/open-iscsi/targetcli-fb/blob/master/targetcli.8">targetcli-fb 官方手册</a></li>
+</ul>
+
+        </div>
+          
+        <div class="top-div">
+          <ol class="top-box"><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8E%9F%E7%90%86%EF%BC%9A%E7%BD%91%E7%BB%9C%E4%B8%8A%E4%BC%A0%E8%BE%93%E7%9A%84%E6%98%AF%E5%9D%97-I-x2F-O"><span class="top-box-text">原理：网络上传输的是块 I&#x2F;O</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%AE%9E%E9%AA%8C%E6%9E%B6%E6%9E%84%E4%B8%8E%E8%BE%B9%E7%95%8C"><span class="top-box-text">实验架构与边界</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%93%8D%E4%BD%9C%EF%BC%9A%E9%85%8D%E7%BD%AE-Target"><span class="top-box-text">操作：配置 Target</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%93%8D%E4%BD%9C%EF%BC%9A%E5%8F%91%E7%8E%B0%E3%80%81%E7%99%BB%E5%BD%95%E5%B9%B6%E4%BD%BF%E7%94%A8-LUN"><span class="top-box-text">操作：发现、登录并使用 LUN</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#%E5%8F%AF%E9%80%89%EF%BC%9A%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%80%E5%9D%97%E7%A1%AE%E8%AE%A4%E6%97%A0%E6%95%B0%E6%8D%AE%E7%9A%84%E6%96%B0-LUN"><span class="top-box-text">可选：初始化一块确认无数据的新 LUN</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%8C%81%E4%B9%85%E5%8C%96%EF%BC%9A%E9%87%8D%E5%90%AF%E5%90%8E%E8%87%AA%E5%8A%A8%E7%99%BB%E5%BD%95%E5%92%8C%E6%8C%82%E8%BD%BD"><span class="top-box-text">持久化：重启后自动登录和挂载</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%AE%89%E5%85%A8%E5%BB%BA%E8%AE%AE"><span class="top-box-text">安全建议</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E9%AA%8C%E6%94%B6"><span class="top-box-text">验收</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%B8%B8%E8%A7%81%E6%8E%92%E9%9A%9C"><span class="top-box-text">常见排障</span></a></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E6%AD%A3%E7%A1%AE%E9%80%80%E5%87%BA%E4%B8%8E%E6%B8%85%E7%90%86%E9%A1%BA%E5%BA%8F"><span class="top-box-text">正确退出与清理顺序</span></a><ol class="top-box-child"><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#1-Initiator%EF%BC%9A%E5%81%9C%E6%AD%A2-I-x2F-O-%E5%B9%B6%E5%8D%B8%E8%BD%BD"><span class="top-box-text">1. Initiator：停止 I&#x2F;O 并卸载</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#2-Initiator%EF%BC%9A%E7%B2%BE%E7%A1%AE%E7%99%BB%E5%87%BA%E5%B9%B6%E5%88%A0%E9%99%A4-node-%E8%AE%B0%E5%BD%95"><span class="top-box-text">2. Initiator：精确登出并删除 node 记录</span></a></li><li class="top-box-item top-box-level-3"><a class="top-box-link" href="#3-Target%EF%BC%9A%E7%A1%AE%E8%AE%A4%E6%97%A0%E4%BC%9A%E8%AF%9D%E5%90%8E%E5%88%A0%E9%99%A4%E5%AF%BC%E5%87%BA"><span class="top-box-text">3. Target：确认无会话后删除导出</span></a></li></ol></li><li class="top-box-item top-box-level-2"><a class="top-box-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="top-box-text">参考资料</span></a></li></ol>
+        </div>
+          
+      </div>
+    </div>
+
+    
+      <div class="next-post">
+        <a class="purple-link" href="/2026/08/20/Libvirt-host-model-%E4%B8%8D%E8%83%BD%E8%A7%A3%E5%86%B3-CPU-%E5%BC%82%E6%9E%84%E7%83%AD%E8%BF%81%E7%A7%BB/">
+          <h3 class="post-title">
+            
+            下一篇：Libvirt host-model 为什么不能直接解决 CPU 异构热迁移
+          </h3>
+        </a>
+      </div>
+    
+  </div>
+
+
+
+
+
+
+
+
+
+
+<footer>
+<div class="site-footer">
+  <div class="social-container">
+    
+      
+        <a aria-label="跳转至github" href="https://github.com/f-dong" target="_blank">
+          <i class="icon icon-github"></i>
+        </a>
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+  
+    Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> <a href="https://github.com/f-dong/hexo-theme-minimalism" target="_blank">Theme</a>
+  
+  
+  
+  
+  
+  
+</div>
+</footer>
+
+
+      </div>
+    </div>
+    
+<script id="hexo-configurations"> window.theme_config = {"image":{"lazyload_enable":true,"lazyload_placeholder":null,"photo_zoom":"simple-lightbox"},"search":{"enable":false,"type":"algolia","placeholder":"输入关键词搜索...","algolia":{"appID":"","apiKey":"","indexName":""}},"language":"zh_CN"}; window.is_post = true; </script>
+
+<script src="/js/main.js"></script>
+
+
+
+
+
+
+  </body>
+</html>
+
